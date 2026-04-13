@@ -1,22 +1,8 @@
 /**
  * Delta Provider
  *
- * Expone todas las operaciones del GDS implementadas con Delta como proveedor.
- * Cada método recibe parámetros normalizados y devuelve datos en schema GDS.
- *
- * Operaciones:
- *  search        - Buscar viajes disponibles
- *  availability  - Mapa de butacas
- *  fares         - Tarifas del tramo
- *  block         - Bloquear butacas
- *  unblock       - Liberar bloqueo
- *  sell          - Emitir boleto (Venta3)
- *  queryTicket   - Consultar boleto por número
- *  getStops      - Catálogo de paradas
- *  getCountries  - Catálogo de países
- *  getDocTypes   - Tipos de documento
- *  createPassenger - Alta de pasajero
- *  findPassenger   - Consulta de pasajero
+ * Expone todas las operaciones del GDS usando Delta como proveedor.
+ * Recibe parámetros normalizados y devuelve datos en schema GDS.
  */
 
 const client = require("./client");
@@ -64,10 +50,8 @@ async function getDocTypes() {
 // ─── Búsqueda ──────────────────────────────────────────────────────────────────
 
 /**
- * @param {object} params
- * @param {number|string} params.originId     - IdParadas_Origen
- * @param {number|string} params.destinationId - IdParadas_Destino
- * @param {string}        params.date          - Fecha en formato 'YYYY-MM-DD' o 'DD/MM/YYYY'
+ * @param {{ originId, destinationId, date }} params
+ * date en formato AAAA-MM-DD
  */
 async function search({ originId, destinationId, date }) {
   try {
@@ -76,6 +60,8 @@ async function search({ originId, destinationId, date }) {
       IdParadas_Destino: destinationId,
       Fecha: date,
     });
+    // El DataSet tiene dos tablas: ServiciosxDiaId (viajes) y ServiciosxDiaId1 (RG3450)
+    // Tomamos solo la primera
     const rows = mapper.parseDataSet(xml, "ServiciosxDiaId");
     const trips = mapper.mapSearch(rows, originId, destinationId);
     return success(PROVIDER, "search", { trips });
@@ -87,10 +73,7 @@ async function search({ originId, destinationId, date }) {
 // ─── Disponibilidad y tarifas ──────────────────────────────────────────────────
 
 /**
- * @param {object} params
- * @param {number|string} params.serviceId
- * @param {number|string} params.originId
- * @param {number|string} params.destinationId
+ * @param {{ serviceId, originId, destinationId }} params
  */
 async function availability({ serviceId, originId, destinationId }) {
   try {
@@ -99,11 +82,8 @@ async function availability({ serviceId, originId, destinationId }) {
       IdParadas_Origen: originId,
       IdParadas_Destino: destinationId,
     });
-    const tables = mapper.parseDataSetAll(xml);
-    const keys = Object.keys(tables);
-    const seatsRows = tables[keys[0]] || [];
-    const metaRows = tables[keys[1]] || [];
-    const data = mapper.mapAvailability(seatsRows, metaRows, serviceId);
+    const rows = mapper.parseDataSet(xml);
+    const data = mapper.mapAvailability(rows, serviceId);
     return success(PROVIDER, "availability", data);
   } catch (err) {
     return error(PROVIDER, "availability", err.message);
@@ -111,10 +91,7 @@ async function availability({ serviceId, originId, destinationId }) {
 }
 
 /**
- * @param {object} params
- * @param {number|string} params.serviceId
- * @param {number|string} params.originId
- * @param {number|string} params.destinationId
+ * @param {{ serviceId, originId, destinationId }} params
  */
 async function fares({ serviceId, originId, destinationId }) {
   try {
@@ -134,21 +111,23 @@ async function fares({ serviceId, originId, destinationId }) {
 // ─── Bloqueo ───────────────────────────────────────────────────────────────────
 
 /**
- * Genera un número de conexión único en Delta (equivale a una sesión de compra)
+ * Genera un NroConexion único (entre 1.000.000 y 9.999.999)
  */
 async function generateConnectionId() {
-  const xml = await client.generadorNroConexion();
-  const val = mapper.parsePrimitive(xml);
-  return val;
+  try {
+    const xml = await client.generadorNroConexion();
+    const connectionId = String(mapper.parsePrimitive(xml));
+    return success(PROVIDER, "generateConnection", { connectionId });
+  } catch (err) {
+    return error(PROVIDER, "generateConnection", err.message);
+  }
 }
 
 /**
- * @param {object} params
- * @param {number|string} params.serviceId
- * @param {number|string} params.originId
- * @param {number|string} params.destinationId
- * @param {string}        params.seats   - Ej: "1,2,3" o "1-2-3" (formato que acepta Delta)
- * @param {string}        [params.connectionId] - Si ya tenés uno generado
+ * Bloquea butacas temporalmente.
+ *
+ * @param {{ serviceId, originId, destinationId, seats, connectionId? }} params
+ * seats: array [1,2,45] o string "1,2,45" — se formatea automáticamente a "001002045"
  */
 async function block({
   serviceId,
@@ -158,21 +137,29 @@ async function block({
   connectionId,
 }) {
   try {
-    // Si no viene connectionId, generamos uno nuevo
-    const nroConexion = connectionId || (await generateConnectionId());
+    // Si no viene connectionId, generamos uno internamente (solo el número crudo)
+    let nroConexion = connectionId;
+    if (!nroConexion) {
+      const xml = await client.generadorNroConexion();
+      nroConexion = String(mapper.parsePrimitive(xml));
+    }
     if (!nroConexion)
       throw new Error("No se pudo generar NroConexion en Delta");
+
+    // Formato requerido por Delta: 3 dígitos por butaca, cero-pad izq.
+    // Ej: [1, 2, 45] → "001002045"
+    const butacasFormateadas = mapper.formatButacasBlock(seats);
 
     const xml = await client.bloquearButacas({
       IdServicios: serviceId,
       IdParadas_Origen: originId,
       IdParadas_Destino: destinationId,
       NroConexion: nroConexion,
-      Butacas: seats,
+      Butacas: butacasFormateadas,
     });
 
     const rawValue = mapper.parsePrimitive(xml);
-    const data = mapper.mapBlock(rawValue, nroConexion, seats);
+    const data = mapper.mapBlock(rawValue, nroConexion, butacasFormateadas);
     return success(PROVIDER, "block", data);
   } catch (err) {
     return error(PROVIDER, "block", err.message);
@@ -180,12 +167,13 @@ async function block({
 }
 
 /**
- * @param {object} params
- * @param {string|number} params.connectionId
+ * @param {{ connectionId }} params
  */
 async function unblock({ connectionId }) {
   try {
-    const xml = await client.desbloquearButacas({ NroConexion: connectionId });
+    const xml = await client.desbloquearButacas({
+      NroConexion: String(connectionId),
+    });
     const rawValue = mapper.parsePrimitive(xml);
     const data = mapper.mapUnblock(rawValue, connectionId);
     return success(PROVIDER, "unblock", data);
@@ -198,16 +186,16 @@ async function unblock({ connectionId }) {
 
 /**
  * @param {object} passenger
- * @param {string} passenger.docType        - TipoDocumento
- * @param {string} passenger.docNumber      - NroDocumento
- * @param {string} passenger.lastName       - Apellido
- * @param {string} passenger.name           - Nombre
- * @param {string} [passenger.occupation]   - Ocupacion
- * @param {string} [passenger.birthDate]    - FechaNacimiento
- * @param {string} [passenger.gender]       - Sexo
- * @param {string} [passenger.nationality]  - Nacionalidad
- * @param {string} [passenger.country]      - PaisResidencia
- * @param {string} [passenger.phone]        - Telefono
+ * @param {string} passenger.docType        - TipoDocumento (1 char, de TiposDocumentoGrilla)
+ * @param {string} passenger.docNumber      - NroDocumento (máx 15 chars)
+ * @param {string} passenger.lastName       - Apellido (máx 20 chars)
+ * @param {string} passenger.name           - Nombre (máx 30 chars)
+ * @param {string} [passenger.occupation]   - Ocupacion (máx 15 chars)
+ * @param {string} [passenger.birthDate]    - FechaNacimiento (AAAA-MM-DD)
+ * @param {string} [passenger.gender]       - Sexo (1 char: M/F)
+ * @param {string} [passenger.nationality]  - Nacionalidad (2 chars, de PaisesGrilla)
+ * @param {string} [passenger.country]      - PaisResidencia (2 chars, de PaisesGrilla)
+ * @param {string} [passenger.phone]        - Telefono (máx 20 chars)
  */
 async function createPassenger(passenger) {
   try {
@@ -224,8 +212,13 @@ async function createPassenger(passenger) {
       Telefono: passenger.phone || "",
     });
     const rows = mapper.parseDataSet(xml);
+    // Respuesta: Error (0=OK), Descripcion
+    const r = rows[0] || {};
+    const ok = String(r.Error) === "0";
     return success(PROVIDER, "createPassenger", {
-      passenger: mapper.mapCatalog(rows)[0] || {},
+      success: ok,
+      error: ok ? null : r.Descripcion || "Error al crear pasajero",
+      raw: r,
     });
   } catch (err) {
     return error(PROVIDER, "createPassenger", err.message);
@@ -239,9 +232,7 @@ async function findPassenger({ docType, docNumber }) {
       NroDocumento: docNumber,
     });
     const rows = mapper.parseDataSet(xml);
-    return success(PROVIDER, "findPassenger", {
-      passenger: mapper.mapCatalog(rows)[0] || null,
-    });
+    return success(PROVIDER, "findPassenger", { passenger: rows[0] || null });
   } catch (err) {
     return error(PROVIDER, "findPassenger", err.message);
   }
@@ -250,46 +241,22 @@ async function findPassenger({ docType, docNumber }) {
 // ─── Venta ─────────────────────────────────────────────────────────────────────
 
 /**
- * Construye el StringButacas para Venta3.
- * Formato por asiento (51 chars): BBBCCTTTTTTTTTTTTTTTPPPPPPPPPPPPPPPDNNNNNNNNNNNNNNN
- * BBB: Butaca (3)
- * CC: Calidad (2)
- * TTT...: Precio * 100 (15)
- * PPP...: Nro Pasaje (15)
- * D: Tipo Documento (1)
- * NNN...: Nro Documento (15)
- */
-function buildStringButacas(seats) {
-  if (typeof seats === "string") return seats;
-  if (!Array.isArray(seats)) return "";
-
-  return seats.map(s => {
-    const BBB = String(s.seat || s.number || "0").padStart(3, "0").slice(-3);
-    const CC = String(s.quality || s.type || "CA").padEnd(2, " ").slice(0, 2);
-    
-    // precio * 100
-    const priceVal = Math.round(parseFloat(s.price || 0) * 100);
-    const TTT = String(priceVal).padStart(15, "0").slice(-15);
-    
-    const PPP = String(s.ticket || s.pasaje || "0").padStart(15, "0").slice(-15);
-    const D = String(s.docType || "1").charAt(0) || "1";
-    const NNN = String(s.docNumber || "0").padStart(15, "0").slice(-15);
-
-    return BBB + CC + TTT + PPP + D + NNN;
-  }).join("");
-}
-
-/**
- * Emite el boleto (Venta3).
+ * Emite el/los boleto(s) — Venta3.
+ *
+ * StringButacas: formato especial por pasajero (ver mapper.buildStringButacas)
+ * Si `seats` es un array de objetos detallados, se construye automáticamente.
+ * Si `seats` es un string preformateado, se usa directamente.
  *
  * @param {object} params
- * @param {number|string} params.serviceId
- * @param {number|string} params.connectionId  - NroConexion generado en block()
- * @param {number|string} params.originId
- * @param {number|string} params.destinationId
- * @param {number}        params.ticketCount   - CantBoletos
- * @param {string|number} params.totalAmount   - ImporteTotal
- * @param {string|array}  params.seats         - Array de objetos de asientos o String preformateado
+ * @param {number|string}   params.serviceId
+ * @param {number|string}   params.connectionId   - NroConexion de block()
+ * @param {number|string}   params.originId
+ * @param {number|string}   params.destinationId
+ * @param {number}          params.ticketCount    - CantBoletos
+ * @param {number|string}   params.totalAmount    - ImporteTotal (con punto decimal)
+ * @param {string|Array}    params.seats
+ *   Si string preformateado: se envía tal cual
+ *   Si Array de objetos: [{ seat, qualityCode, amount, ticketNumber, docType, docNumber }]
  */
 async function sell({
   serviceId,
@@ -301,8 +268,13 @@ async function sell({
   seats,
 }) {
   try {
-    const formattedSeats = buildStringButacas(seats);
-    
+    let stringButacas;
+    if (typeof seats === "string") {
+      stringButacas = seats; // ya formateado por el caller
+    } else {
+      stringButacas = mapper.buildStringButacas(seats);
+    }
+
     const xml = await client.venta3({
       IdServicios: serviceId,
       NroConexion: connectionId,
@@ -310,11 +282,11 @@ async function sell({
       IdParadas_Destino: destinationId,
       CantBoletos: ticketCount,
       ImporteTotal: String(totalAmount),
-      StringButacas: formattedSeats,
+      StringButacas: stringButacas,
     });
     const rows = mapper.parseDataSet(xml);
-    const tickets = mapper.mapSell(rows);
-    return success(PROVIDER, "sell", { tickets });
+    const result = mapper.mapSell(rows);
+    return success(PROVIDER, "sell", result);
   } catch (err) {
     return error(PROVIDER, "sell", err.message);
   }
@@ -323,9 +295,8 @@ async function sell({
 // ─── Consulta de boleto ────────────────────────────────────────────────────────
 
 /**
- * @param {object} params
- * @param {string} params.company    - Empresa
- * @param {string} params.ticketNumber - Boleto
+ * @param {{ company, ticketNumber }} params
+ * company: código de empresa (ej: "SOL", "EPA")
  */
 async function queryTicket({ company, ticketNumber }) {
   try {
@@ -348,45 +319,48 @@ async function queryTicketQR({ company, ticketNumber }) {
       Boleto: ticketNumber,
     });
     const rows = mapper.parseDataSet(xml);
+    // Resultado: CDC (STRING), QR (STRING)
+    const r = rows[0] || {};
     return success(PROVIDER, "queryTicketQR", {
-      data: mapper.mapCatalog(rows),
+      cdc: r.CDC || null,
+      qr: r.QR || null,
     });
   } catch (err) {
     return error(PROVIDER, "queryTicketQR", err.message);
   }
 }
 
-async function generateConnection() {
+// ─── Recorrido del servicio ────────────────────────────────────────────────────
+
+async function getServiceRoute({ serviceId }) {
   try {
-    const connectionId = await generateConnectionId();
-    return success(PROVIDER, "generateConnection", { connectionId });
+    const xml = await client.serviciosRecorrido({ IdServicios: serviceId });
+    const rows = mapper.parseDataSet(xml);
+    // Resultado: Id, Orden, Codigo, Horario, Parada
+    return success(PROVIDER, "getServiceRoute", {
+      stops: mapper.mapCatalog(rows),
+    });
   } catch (err) {
-    return error(PROVIDER, "generateConnection", err.message);
+    return error(PROVIDER, "getServiceRoute", err.message);
   }
 }
 
 // ─── Exports ───────────────────────────────────────────────────────────────────
 
 module.exports = {
-  // Catálogos
   getStops,
   getCountries,
   getDocTypes,
-  // Búsqueda
   search,
-  // Disponibilidad
   availability,
   fares,
-  // Bloqueo
-  generateConnection,
   block,
   unblock,
-  // Pasajeros
+  generateConnectionId,
   createPassenger,
   findPassenger,
-  // Venta
   sell,
-  // Consulta
   queryTicket,
   queryTicketQR,
+  getServiceRoute,
 };

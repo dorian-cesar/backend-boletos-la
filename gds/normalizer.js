@@ -4,7 +4,9 @@
  * sin importar qué proveedor subyacente se use (Delta, otro GDS, etc.)
  */
 
-const { v4: uuidv4 } = require('crypto').randomUUID ? { v4: () => require('crypto').randomUUID() } : { v4: () => `${Date.now()}-${Math.random().toString(36).slice(2)}` };
+const { v4: uuidv4 } = require("crypto").randomUUID
+  ? { v4: () => require("crypto").randomUUID() }
+  : { v4: () => `${Date.now()}-${Math.random().toString(36).slice(2)}` };
 
 /**
  * Construye una respuesta exitosa normalizada
@@ -18,12 +20,12 @@ function success(provider, operation, data) {
     provider,
     operation,
     success: true,
-    status: 'success',
+    status: "success",
     data,
     meta: {
       timestamp: new Date().toISOString(),
-      requestId: genId()
-    }
+      requestId: genId(),
+    },
   };
 }
 
@@ -39,12 +41,12 @@ function error(provider, operation, message, details = null) {
     provider,
     operation,
     success: false,
-    status: 'error',
+    status: "error",
     error: { message },
     meta: {
       timestamp: new Date().toISOString(),
-      requestId: genId()
-    }
+      requestId: genId(),
+    },
   };
   if (details) resp.error.details = details;
   return resp;
@@ -52,7 +54,7 @@ function error(provider, operation, message, details = null) {
 
 function genId() {
   try {
-    return require('crypto').randomUUID();
+    return require("crypto").randomUUID();
   } catch {
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }

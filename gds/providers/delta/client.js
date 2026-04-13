@@ -88,6 +88,7 @@ module.exports = {
   rg3550Consulta: (p) => call('RG3550Consulta', p),
   rg3550Alta: (p) => call('RG3550Alta', p),
   empresasParaPasajesAlta: (p) => call('EmpresasParaPasajes_Alta', p),
+  empresasParaPasajesConsulta: (p) => call('EmpresasParaPasajes_Consulta', p),
   pasajesFacturaAEmpresa: (p) => call('PasajesFacturaAEmpresa', p),
 
   // Util interno

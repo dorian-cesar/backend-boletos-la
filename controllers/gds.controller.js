@@ -8,16 +8,16 @@
  * { provider, operation, status, data|error, meta }
  */
 
-const gds = require('../gds/index');
+const gds = require("../gds/index");
 
 // Helper: extrae provider de params o query, default 'delta'
 function getProvider(req) {
-  return (req.params.provider || req.query.provider || 'delta').toLowerCase();
+  return (req.params.provider || req.query.provider || "delta").toLowerCase();
 }
 
 // Helper: responde con el resultado del GDS (ya viene normalizado)
 function send(res, result) {
-  const httpStatus = result.status === 'success' ? 200 : 400;
+  const httpStatus = result.status === "success" ? 200 : 400;
   return res.status(httpStatus).json(result);
 }
 
@@ -60,9 +60,9 @@ exports.search = async (req, res) => {
   if (!originId || !destinationId || !date) {
     return res.status(400).json({
       provider,
-      operation: 'search',
-      status: 'error',
-      error: { message: 'Faltan parámetros: originId, destinationId, date' }
+      operation: "search",
+      status: "error",
+      error: { message: "Faltan parámetros: originId, destinationId, date" },
     });
   }
 
@@ -83,13 +83,19 @@ exports.availability = async (req, res) => {
   if (!serviceId || !originId || !destinationId) {
     return res.status(400).json({
       provider,
-      operation: 'availability',
-      status: 'error',
-      error: { message: 'Faltan parámetros: serviceId, originId, destinationId' }
+      operation: "availability",
+      status: "error",
+      error: {
+        message: "Faltan parámetros: serviceId, originId, destinationId",
+      },
     });
   }
 
-  const result = await gds.availability(provider, { serviceId, originId, destinationId });
+  const result = await gds.availability(provider, {
+    serviceId,
+    originId,
+    destinationId,
+  });
   send(res, result);
 };
 
@@ -104,13 +110,19 @@ exports.fares = async (req, res) => {
   if (!serviceId || !originId || !destinationId) {
     return res.status(400).json({
       provider,
-      operation: 'fares',
-      status: 'error',
-      error: { message: 'Faltan parámetros: serviceId, originId, destinationId' }
+      operation: "fares",
+      status: "error",
+      error: {
+        message: "Faltan parámetros: serviceId, originId, destinationId",
+      },
     });
   }
 
-  const result = await gds.fares(provider, { serviceId, originId, destinationId });
+  const result = await gds.fares(provider, {
+    serviceId,
+    originId,
+    destinationId,
+  });
   send(res, result);
 };
 
@@ -132,18 +144,27 @@ exports.generateConnection = async (req, res) => {
  */
 exports.block = async (req, res) => {
   const provider = getProvider(req);
-  const { serviceId, originId, destinationId, seats, connectionId } = req.body || {};
+  const { serviceId, originId, destinationId, seats, connectionId } =
+    req.body || {};
 
   if (!serviceId || !originId || !destinationId || !seats) {
     return res.status(400).json({
       provider,
-      operation: 'block',
-      status: 'error',
-      error: { message: 'Faltan parámetros: serviceId, originId, destinationId, seats' }
+      operation: "block",
+      status: "error",
+      error: {
+        message: "Faltan parámetros: serviceId, originId, destinationId, seats",
+      },
     });
   }
 
-  const result = await gds.block(provider, { serviceId, originId, destinationId, seats, connectionId });
+  const result = await gds.block(provider, {
+    serviceId,
+    originId,
+    destinationId,
+    seats,
+    connectionId,
+  });
   send(res, result);
 };
 
@@ -158,9 +179,9 @@ exports.unblock = async (req, res) => {
   if (!connectionId) {
     return res.status(400).json({
       provider,
-      operation: 'unblock',
-      status: 'error',
-      error: { message: 'Falta parámetro: connectionId' }
+      operation: "unblock",
+      status: "error",
+      error: { message: "Falta parámetro: connectionId" },
     });
   }
 
@@ -181,9 +202,11 @@ exports.createPassenger = async (req, res) => {
   if (!docType || !docNumber || !name || !lastName) {
     return res.status(400).json({
       provider,
-      operation: 'createPassenger',
-      status: 'error',
-      error: { message: 'Faltan parámetros: docType, docNumber, name, lastName' }
+      operation: "createPassenger",
+      status: "error",
+      error: {
+        message: "Faltan parámetros: docType, docNumber, name, lastName",
+      },
     });
   }
 
@@ -202,9 +225,9 @@ exports.findPassenger = async (req, res) => {
   if (!docType || !docNumber) {
     return res.status(400).json({
       provider,
-      operation: 'findPassenger',
-      status: 'error',
-      error: { message: 'Faltan parámetros: docType, docNumber' }
+      operation: "findPassenger",
+      status: "error",
+      error: { message: "Faltan parámetros: docType, docNumber" },
     });
   }
 
@@ -220,14 +243,33 @@ exports.findPassenger = async (req, res) => {
  */
 exports.sell = async (req, res) => {
   const provider = getProvider(req);
-  const { serviceId, connectionId, originId, destinationId, ticketCount, totalAmount, seats } = req.body || {};
+  const {
+    serviceId,
+    connectionId,
+    originId,
+    destinationId,
+    ticketCount,
+    totalAmount,
+    seats,
+  } = req.body || {};
 
-  if (!serviceId || !connectionId || !originId || !destinationId || !ticketCount || !totalAmount || !seats) {
+  if (
+    !serviceId ||
+    !connectionId ||
+    !originId ||
+    !destinationId ||
+    !ticketCount ||
+    !totalAmount ||
+    !seats
+  ) {
     return res.status(400).json({
       provider,
-      operation: 'sell',
-      status: 'error',
-      error: { message: 'Faltan parámetros: serviceId, connectionId, originId, destinationId, ticketCount, totalAmount, seats' }
+      operation: "sell",
+      status: "error",
+      error: {
+        message:
+          "Faltan parámetros: serviceId, connectionId, originId, destinationId, ticketCount, totalAmount, seats",
+      },
     });
   }
 
@@ -247,5 +289,41 @@ exports.queryTicket = async (req, res) => {
   const company = req.query.company || provider.toUpperCase();
 
   const result = await gds.queryTicket(provider, { company, ticketNumber });
+  send(res, result);
+};
+
+/**
+ * GET /api/gds/:provider/tickets/:ticketNumber/qr
+ * Query: company
+ */
+exports.queryTicketQR = async (req, res) => {
+  const provider = getProvider(req);
+  const { ticketNumber } = req.params;
+  const { company } = req.query;
+
+  const result = await gds.queryTicketQR(provider, { company, ticketNumber });
+  send(res, result);
+};
+
+// ─── Recorrido del servicio ────────────────────────────────────────────────────
+
+/**
+ * GET /api/gds/:provider/services/:serviceId/route
+ */
+
+exports.getServiceRoute = async (req, res) => {
+  const provider = getProvider(req);
+  const { serviceId } = req.params;
+
+  if (!serviceId) {
+    return res.status(400).json({
+      provider,
+      operation: 'getServiceRoute',
+      status: 'error',
+      error: { message: 'Falta parámetro: serviceId' }
+    });
+  }
+
+  const result = await gds.getServiceRoute(provider, { serviceId });
   send(res, result);
 };

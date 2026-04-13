@@ -10,39 +10,49 @@
  * cambia :provider en la URL y el backend despacha automáticamente.
  */
 
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const ctrl = require('../controllers/gds.controller');
-const auth = require('../middlewares/auth.middleware');
+const ctrl = require("../controllers/gds.controller");
+const auth = require("../middlewares/auth.middleware");
 
 // Listar proveedores disponibles (público)
-router.get('/providers', ctrl.listProviders);
+router.get("/providers", ctrl.listProviders);
 
 // ─── Catálogos (requieren auth básica) ────────────────────────────────────────
-router.get('/:provider/stops',     auth(), ctrl.getStops);
-router.get('/:provider/countries', auth(), ctrl.getCountries);
-router.get('/:provider/doc-types', auth(), ctrl.getDocTypes);
+router.get("/:provider/stops", auth(), ctrl.getStops);
+router.get("/:provider/countries", auth(), ctrl.getCountries);
+router.get("/:provider/doc-types", auth(), ctrl.getDocTypes);
 
 // ─── Búsqueda ──────────────────────────────────────────────────────────────────
-router.get('/:provider/search', auth(), ctrl.search);
+router.get("/:provider/search", auth(), ctrl.search);
 
 // ─── Disponibilidad y tarifas ──────────────────────────────────────────────────
-router.get('/:provider/availability', auth(), ctrl.availability);
-router.get('/:provider/fares',        auth(), ctrl.fares);
+router.get("/:provider/availability", auth(), ctrl.availability);
+router.get("/:provider/fares", auth(), ctrl.fares);
 
 // ─── Bloqueo de butacas ────────────────────────────────────────────────────────
-router.post('/:provider/connection', auth(), ctrl.generateConnection);
-router.post('/:provider/block',   auth(), ctrl.block);
-router.post('/:provider/unblock', auth(), ctrl.unblock);
+router.post("/:provider/connection", auth(), ctrl.generateConnection);
+router.post("/:provider/block", auth(), ctrl.block);
+router.post("/:provider/unblock", auth(), ctrl.unblock);
 
 // ─── Pasajeros ─────────────────────────────────────────────────────────────────
-router.post('/:provider/passengers', auth(), ctrl.createPassenger);
-router.get('/:provider/passengers',  auth(), ctrl.findPassenger);
+router.post("/:provider/passengers", auth(), ctrl.createPassenger);
+router.get("/:provider/passengers", auth(), ctrl.findPassenger);
 
 // ─── Venta ─────────────────────────────────────────────────────────────────────
-router.post('/:provider/sell', auth(), ctrl.sell);
+router.post("/:provider/sell", auth(), ctrl.sell);
 
 // ─── Consulta de boleto ────────────────────────────────────────────────────────
-router.get('/:provider/tickets/:ticketNumber', auth(), ctrl.queryTicket);
+
+// ─── Consulta de boleto ────────────────────────────────────────────────────────
+router.get("/:provider/tickets/:ticketNumber", auth(), ctrl.queryTicket);
+router.get("/:provider/tickets/:ticketNumber/qr", auth(), ctrl.queryTicketQR);
+
+// ─── Recorrido del servicio ────────────────────────────────────────────────────
+router.get(
+  "/:provider/services/:serviceId/route",
+  auth(),
+  ctrl.getServiceRoute,
+);
 
 module.exports = router;

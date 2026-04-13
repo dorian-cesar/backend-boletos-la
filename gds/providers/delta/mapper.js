@@ -247,47 +247,43 @@ function mapSearch(rows, originId, destinationId) {
 
 /**
  * ObtenerTaquilla → floors[] con seats[]
+ *
+ * Campos reales confirmados por PDF oficial:
+ *   Piso    → STRING  piso del coche ("1", "2")
+ *   Columna → INTEGER columna en el layout
+ *   Fila    → INTEGER fila en el layout
+ *   Color   → STRING  color de referencia visual
+ *   Texto   → STRING  número/etiqueta de la butaca (ej: "01", "02")
+ *   Estado  → STRING  estado de la butaca
+ *
+ * El ID único de butaca se construye como Piso+Fila+Columna ya que
+ * Delta no devuelve un IdButaca explícito.
  */
-function mapAvailability(seatsRows, metaRows, serviceId) {
+function mapAvailability(rows, serviceId) {
   const byFloor = {};
 
-  // Extraer información general (tarifas) de la segunda tabla
-  let tarifa = null;
-  if (metaRows && metaRows.length > 0) {
-    // Tomamos TarifaA o similar si la segunda tabla la provee
-    const meta = metaRows[0];
-    tarifa = parseFloat(meta.TarifaA || meta.Tarifa || "0");
-  }
-
-  seatsRows.forEach((r) => {
-    const floor = parseInt(r.Piso || r.NroPiso || r.NumPiso || "1") || 1;
+  rows.forEach((r) => {
+    const floor = parseInt(r.Piso || "1") || 1;
     if (!byFloor[floor]) byFloor[floor] = [];
 
-    // Propiedades crudas esparcidas según solicitado
-    const seatObj = {
-      ...r,
-      id: r.IdButaca || r.NroButaca || r.Butaca || null,
-      number:
-        (r.Texto && r.Texto.trim()) ||
-        r.NroButaca ||
-        r.Butaca ||
-        r.NumeroButaca ||
-        null,
-      status: mapSeatStatus(r.Estado || r.EstadoButaca || r.Disponible),
-      type: r.TipoButaca || r.Tipo || r.Calidad || "standard",
-      row: r.Fila ? parseInt(r.Fila) : null,
-      column: r.Columna ? parseInt(r.Columna) : null,
-      price: tarifa > 0 ? tarifa : null,
-      raw: r,
-    };
+    const fila = r.Fila ? parseInt(r.Fila) : null;
+    const columna = r.Columna ? parseInt(r.Columna) : null;
+    const texto = r.Texto ? r.Texto.trim() : null;
 
-    byFloor[floor].push(seatObj);
+    byFloor[floor].push({
+      id: `${floor}-${fila}-${columna}`, // ID sintético único
+      number: texto, // número visible en pantalla
+      status: mapSeatStatus(r.Estado),
+      color: r.Color || null,
+      row: fila,
+      column: columna,
+      raw: r,
+    });
   });
 
-  const floors = Object.entries(byFloor).map(([floor, seats]) => ({
-    floor: parseInt(floor),
-    seats,
-  }));
+  const floors = Object.entries(byFloor)
+    .sort(([a], [b]) => parseInt(a) - parseInt(b))
+    .map(([floor, seats]) => ({ floor: parseInt(floor), seats }));
 
   if (!floors.length) floors.push({ floor: 1, seats: [] });
 
@@ -296,19 +292,20 @@ function mapAvailability(seatsRows, metaRows, serviceId) {
 
 /**
  * ObtenerTarifas → fares[]
+ *
+ * Campos reales confirmados por PDF oficial:
+ *   Codigo      → STRING código de calidad (ej: "CA", "SE")
+ *   Descripcion → STRING descripción (ej: "Cama", "Semicama")
+ *   Tarifa      → MONEY  precio
  */
 function mapFares(rows, serviceId) {
   const fares = rows.map((r) => ({
-    id: r.IdTarifa || r.CodTarifa || null,
-    name:
-      r.NombreTarifa ||
-      r.Descripcion ||
-      r.Tipo ||
-      r.Calidad ||
-      "Tarifa estándar",
-    price: parseFloat(r.Precio || r.Importe || r.Tarifa || "0"),
+    id: r.Codigo || null,
+    name: r.Descripcion || r.Codigo || "Tarifa estándar",
+    code: r.Codigo || null,
+    price: parseFloat(r.Tarifa || "0"),
     currency: "PYG",
-    conditions: r.Condiciones || null,
+    conditions: null,
     raw: r,
   }));
 
@@ -317,105 +314,169 @@ function mapFares(rows, serviceId) {
 
 /**
  * BloquearButacas → block result
+ * Resultado: INTEGER (0 = OK)
  */
 function mapBlock(rawValue, connectionId, seats) {
   return {
     connectionId: String(connectionId),
     providerResult: rawValue,
-    blockedSeats:
-      typeof seats === "string"
-        ? seats.split(",").map((s) => s.trim())
-        : seats || [],
+    success: rawValue === "0",
+    blockedSeats: seats,
     expiresAt: null,
   };
 }
 
 /**
  * DesbloquearButacas → unblock result
+ * Resultado: Error (INT, 0=OK), Descripcion (STRING)
  */
 function mapUnblock(rawValue, connectionId) {
   return {
     connectionId: String(connectionId),
-    released: rawValue !== "0" && rawValue !== "-1",
+    released: rawValue === "0",
+    providerResult: rawValue,
   };
 }
 
 /**
- * Venta3 → tickets[]
+ * Venta3 → sell result
+ * Resultado del PDF: Error (INT, 0=OK), Descripcion (STRING)
  */
 function mapSell(rows) {
-  return rows.map((r) => ({
-    ticketNumber: r.NroBoleto || r.NroPasaje || r.Boleto || null,
-    passenger: {
-      name: r.Nombre || null,
-      lastName: r.Apellido || null,
-      docType: r.TipoDocumento || null,
-      docNumber: r.NroDocumento || null,
-    },
-    seat: r.Butaca || r.NroButaca || null,
-    origin: {
-      id: r.IdParadas_Origen || null,
-      name: r.Origen || r.ParadaOrigen || null,
-    },
-    destination: {
-      id: r.IdParadas_Destino || null,
-      name: r.Destino || r.ParadaDestino || null,
-    },
-    departureTime: r.FechaEmbarque || r.Fecha || r.FechaSalida || null,
-    totalAmount: parseFloat(
-      r.Importe || r.ImporteTotal || r.Precio || r.Tarifa || "0",
-    ),
-    currency: "PYG",
-    issuedAt: new Date().toISOString(),
+  if (!rows.length) return { success: false, error: "Sin respuesta de Delta" };
+  const r = rows[0];
+  const errVal = r.Error !== undefined ? r.Error : r._value || "-1";
+  const ok = String(errVal) === "0";
+  return {
+    success: ok,
+    error: ok ? null : r.Descripcion || `Error Delta: ${errVal}`,
     raw: r,
-  }));
+  };
 }
 
 /**
- * BoletosConsultar → ticket
+ * BoletosConsultar → ticket completo
+ * Campos reales confirmados por PDF oficial
  */
 function mapTicket(rows) {
   if (!rows.length) return null;
   const r = rows[0];
   return {
-    ticketNumber: r.NroBoleto || r.Boleto || null,
-    status: r.Estado || r.EstadoBoleto || "unknown",
+    ticketNumber: r.Pasaje || null,
+    company: r.Empresa || null,
+    status: r.Devuelto === "S" ? "cancelled" : "issued",
+    isOpen: r.Abierto === "S",
+    serviceCode: r.Servicio || null,
     passenger: {
-      name: r.Nombre || null,
       lastName: r.Apellido || null,
-      docType: r.TipoDocumento || null,
-      docNumber: r.NroDocumento || null,
+      name: r.Nombres || null,
+      docType: r.DocTipo || null,
+      docNumber: r.DocNumero || null,
+      nationality: r.Nacionalidad || null,
+      birthDate: r.FechaNacimiento || null,
+      occupation: r.Ocupacion || null,
+      gender: r.Sexo || null,
+      isMinor: r.Menor === "S",
     },
     trip: {
-      origin: r.Origen || r.ParadaOrigen || null,
-      destination: r.Destino || r.ParadaDestino || null,
-      departureTime: r.FechaEmbarque || r.Fecha || null,
-      seat: r.Butaca || r.NroButaca || null,
+      departureDate: r.FechaEmb || null,
+      arrivalDate: r.FechaDes || null,
+      departureStop: r.Embarque || null,
+      arrivalStop: r.Desemb || null,
+      departureFull: r.EmbarqueDes || null,
+      arrivalFull: r.DesembDes || null,
+      seat: r.Butaca ? parseInt(r.Butaca) : null,
+      serviceClass: mapCalidad(r.Calidad),
+      serviceClassCode: r.Calidad || null,
+      serviceClassDesc: r.CalidadDes || null,
     },
-    totalAmount: parseFloat(r.Importe || r.ImporteTotal || "0"),
-    currency: "PYG",
+    payment: {
+      amount: parseFloat(r.Importe || "0"),
+      discount: parseFloat(r.Descuento || "0"),
+      fare: r.Tarifa || null,
+      currency: "PYG",
+      method: r.FormaPago || null,
+      taxable: parseFloat(r.Gravado || "0"),
+      iva: parseFloat(r.IVA || "0"),
+      exempt: parseFloat(r.Exento || "0"),
+      rg: {
+        percent: parseFloat(r.RGPorcent || "0"),
+        amount: r.RGImporte || null,
+        description: r.RGDescripc || null,
+        total: r.RGTotal || null,
+      },
+    },
+    issuedAt: r.VentaFec || null,
+    queryDate: r.FechaActual || null,
+    newTicket: r.BoletoNuevo || null,
     raw: r,
   };
 }
 
-/**
- * Catálogos genéricos (stops, países, doc types)
- */
 function mapCatalog(rows) {
   return rows;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers de formato ────────────────────────────────────────────────────────
 
 function mapSeatStatus(raw) {
   if (!raw) return "available";
   const val = String(raw).toLowerCase().trim();
-  if (["libre", "disponible", "l", "0", "false"].includes(val))
+  if (["l", "libre", "disponible", "0", "false", ""].includes(val))
     return "available";
-  if (["ocupado", "vendido", "o", "1", "true", "v"].includes(val))
+  if (["o", "v", "ocupado", "vendido", "1", "true"].includes(val))
     return "occupied";
-  if (["bloqueado", "reservado", "b", "r"].includes(val)) return "blocked";
+  if (["b", "r", "bloqueado", "reservado"].includes(val)) return "blocked";
   return "available";
+}
+
+/**
+ * Formatea asientos para BloquearButacas.
+ * Delta espera cadena de 3 dígitos por butaca, cero-pad izquierda.
+ * Ej: [1, 2, 45] → "001002045"
+ */
+function formatButacasBlock(seats) {
+  let arr;
+  if (typeof seats === "string") {
+    if (/^\d+$/.test(seats) && seats.length % 3 === 0) return seats;
+    arr = seats
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  } else if (Array.isArray(seats)) {
+    arr = seats.map((s) => String(s).trim()).filter(Boolean);
+  } else {
+    arr = [String(seats)];
+  }
+  return arr.map((n) => String(parseInt(n)).padStart(3, "0")).join("");
+}
+
+/**
+ * Construye StringButacas para Venta3.
+ * Formato por pasajero (PDF oficial):
+ *   BBB(3) + CC(2) + T×15 + P×13 + D(1) + N×17
+ *
+ * ⚠️  Los largos T, P, N son estimados. Verificar con Venta3 real.
+ *
+ * @param {Array<{seat, qualityCode, amount, ticketNumber, docType, docNumber}>} passengers
+ */
+function buildStringButacas(passengers) {
+  return passengers
+    .map((p) => {
+      const bbb = String(parseInt(p.seat || "0")).padStart(3, "0");
+      const cc = String(p.qualityCode || "")
+        .padEnd(2, " ")
+        .slice(0, 2);
+      const imp = Math.round(parseFloat(p.amount || 0) * 100);
+      const ttt = String(imp).padStart(15, "0");
+      const ppp = String(p.ticketNumber || "0").padStart(13, "0");
+      const d = String(p.docType || "").slice(0, 1);
+      const nnn = String(p.docNumber || "")
+        .padStart(17, " ")
+        .slice(-17);
+      return `${bbb}${cc}${ttt}${ppp}${d}${nnn}`;
+    })
+    .join("");
 }
 
 module.exports = {
@@ -430,7 +491,8 @@ module.exports = {
   mapSell,
   mapTicket,
   mapCatalog,
-  // Util expuesto para debug
   mapCalidad,
   mapSeatStatus,
+  formatButacasBlock,
+  buildStringButacas,
 };
