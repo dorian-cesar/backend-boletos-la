@@ -31,6 +31,7 @@ router.get('/:provider/availability', auth(), ctrl.availability);
 router.get('/:provider/fares',        auth(), ctrl.fares);
 
 // ─── Bloqueo de butacas ────────────────────────────────────────────────────────
+router.post('/:provider/connection', auth(), ctrl.generateConnection);
 router.post('/:provider/block',   auth(), ctrl.block);
 router.post('/:provider/unblock', auth(), ctrl.unblock);
 

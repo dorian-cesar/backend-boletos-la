@@ -117,6 +117,16 @@ exports.fares = async (req, res) => {
 // ─── Bloqueo ───────────────────────────────────────────────────────────────────
 
 /**
+ * GET | POST /api/gds/:provider/connection
+ * Genera el identificador único de carrito o proceso de emisión
+ */
+exports.generateConnection = async (req, res) => {
+  const provider = getProvider(req);
+  const result = await gds.generateConnection(provider);
+  send(res, result);
+};
+
+/**
  * POST /api/gds/:provider/block
  * Body: { serviceId, originId, destinationId, seats, connectionId? }
  */

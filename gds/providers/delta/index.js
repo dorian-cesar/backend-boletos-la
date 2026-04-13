@@ -250,6 +250,36 @@ async function findPassenger({ docType, docNumber }) {
 // ─── Venta ─────────────────────────────────────────────────────────────────────
 
 /**
+ * Construye el StringButacas para Venta3.
+ * Formato por asiento (51 chars): BBBCCTTTTTTTTTTTTTTTPPPPPPPPPPPPPPPDNNNNNNNNNNNNNNN
+ * BBB: Butaca (3)
+ * CC: Calidad (2)
+ * TTT...: Precio * 100 (15)
+ * PPP...: Nro Pasaje (15)
+ * D: Tipo Documento (1)
+ * NNN...: Nro Documento (15)
+ */
+function buildStringButacas(seats) {
+  if (typeof seats === "string") return seats;
+  if (!Array.isArray(seats)) return "";
+
+  return seats.map(s => {
+    const BBB = String(s.seat || s.number || "0").padStart(3, "0").slice(-3);
+    const CC = String(s.quality || s.type || "CA").padEnd(2, " ").slice(0, 2);
+    
+    // precio * 100
+    const priceVal = Math.round(parseFloat(s.price || 0) * 100);
+    const TTT = String(priceVal).padStart(15, "0").slice(-15);
+    
+    const PPP = String(s.ticket || s.pasaje || "0").padStart(15, "0").slice(-15);
+    const D = String(s.docType || "1").charAt(0) || "1";
+    const NNN = String(s.docNumber || "0").padStart(15, "0").slice(-15);
+
+    return BBB + CC + TTT + PPP + D + NNN;
+  }).join("");
+}
+
+/**
  * Emite el boleto (Venta3).
  *
  * @param {object} params
@@ -259,7 +289,7 @@ async function findPassenger({ docType, docNumber }) {
  * @param {number|string} params.destinationId
  * @param {number}        params.ticketCount   - CantBoletos
  * @param {string|number} params.totalAmount   - ImporteTotal
- * @param {string}        params.seats         - StringButacas (ej: "1,2")
+ * @param {string|array}  params.seats         - Array de objetos de asientos o String preformateado
  */
 async function sell({
   serviceId,
@@ -271,6 +301,8 @@ async function sell({
   seats,
 }) {
   try {
+    const formattedSeats = buildStringButacas(seats);
+    
     const xml = await client.venta3({
       IdServicios: serviceId,
       NroConexion: connectionId,
@@ -278,7 +310,7 @@ async function sell({
       IdParadas_Destino: destinationId,
       CantBoletos: ticketCount,
       ImporteTotal: String(totalAmount),
-      StringButacas: seats,
+      StringButacas: formattedSeats,
     });
     const rows = mapper.parseDataSet(xml);
     const tickets = mapper.mapSell(rows);
@@ -324,6 +356,15 @@ async function queryTicketQR({ company, ticketNumber }) {
   }
 }
 
+async function generateConnection() {
+  try {
+    const connectionId = await generateConnectionId();
+    return success(PROVIDER, "generateConnection", { connectionId });
+  } catch (err) {
+    return error(PROVIDER, "generateConnection", err.message);
+  }
+}
+
 // ─── Exports ───────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -337,9 +378,9 @@ module.exports = {
   availability,
   fares,
   // Bloqueo
+  generateConnection,
   block,
   unblock,
-  generateConnectionId,
   // Pasajeros
   createPassenger,
   findPassenger,

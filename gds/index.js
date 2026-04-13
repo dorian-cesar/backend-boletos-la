@@ -65,6 +65,16 @@ async function fares(provider, params) {
 }
 
 /**
+ * Genera un connection Id (NroConexion)
+ */
+async function generateConnection(provider) {
+  const p = getProvider(provider);
+  if (!p) return error(provider, 'generateConnection', `Proveedor '${provider}' no encontrado`);
+  if (!p.generateConnection) return error(provider, 'generateConnection', `Operación no soportada`);
+  return p.generateConnection();
+}
+
+/**
  * Bloquea butacas (inicia proceso de compra)
  */
 async function block(provider, params) {
@@ -144,6 +154,7 @@ module.exports = {
   search,
   availability,
   fares,
+  generateConnection,
   block,
   unblock,
   sell,
