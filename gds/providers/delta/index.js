@@ -258,7 +258,22 @@ async function findPassenger({ docType, docNumber }) {
  *   Si string preformateado: se envía tal cual
  *   Si Array de objetos: [{ seat, qualityCode, amount, ticketNumber, docType, docNumber }]
  */
+/**
+ * @param {object} params
+ * @param {string}        params.company         - Código de empresa (EmpresaBoleto, ej: "SOL")
+ * @param {number|string} params.serviceId
+ * @param {number|string} params.connectionId    - NroConexion de block()
+ * @param {number|string} params.originId
+ * @param {number|string} params.destinationId
+ * @param {number}        params.ticketCount     - CantBoletos
+ * @param {number|string} params.totalAmount     - ImporteTotal (con punto decimal)
+ * @param {string|Array}  params.seats
+ *   Si string preformateado: se envía tal cual
+ *   Si Array de objetos: [{ seat, qualityCode, amount, ticketNumber?, docType, docNumber }]
+ *   Si ticketNumber no viene en cada seat, se obtiene automáticamente de BoletosProximoNumeroLibre
+ */
 async function sell({
+  company,
   serviceId,
   connectionId,
   originId,
@@ -268,12 +283,37 @@ async function sell({
   seats,
 }) {
   try {
-    let stringButacas;
-    if (typeof seats === "string") {
-      stringButacas = seats; // ya formateado por el caller
-    } else {
-      stringButacas = mapper.buildStringButacas(seats);
+    let processedSeats = seats;
+    let assignedTicketNumbers = [];
+
+    // Si seats es un array de objetos, asignar número de boleto a los que no lo tienen
+    if (Array.isArray(seats)) {
+      processedSeats = await Promise.all(
+        seats.map(async (seat) => {
+          if (!seat.ticketNumber) {
+            const ticketXml = await client.boletosProximoNumeroLibre({
+              EmpresaBoleto: company,
+            });
+            const ticketNumber = String(
+              mapper.parsePrimitive(ticketXml),
+            ).trim();
+            if (!ticketNumber || ticketNumber === "null") {
+              throw new Error(
+                `No se pudo obtener número de boleto para butaca ${seat.seat}`,
+              );
+            }
+            return { ...seat, ticketNumber };
+          }
+          return seat;
+        }),
+      );
+      assignedTicketNumbers = processedSeats.map((s) => s.ticketNumber);
     }
+
+    const stringButacas =
+      typeof processedSeats === "string"
+        ? processedSeats
+        : mapper.buildStringButacas(processedSeats);
 
     const xml = await client.venta3({
       IdServicios: serviceId,
@@ -285,13 +325,14 @@ async function sell({
       StringButacas: stringButacas,
     });
 
-    console.log("==== XML DE RESPUESTA DELTA (Venta3) ====");
-    console.log(xml);
-    console.log("=========================================");
-
     const rows = mapper.parseDataSet(xml);
     const result = mapper.mapSell(rows);
-    return success(PROVIDER, "sell", result);
+
+    return success(PROVIDER, "sell", {
+      ...result,
+      ticketNumbers: assignedTicketNumbers,
+      company,
+    });
   } catch (err) {
     // Si el error viene de TablaError de Delta, incluir código y descripción estructurados
     if (err.code) {

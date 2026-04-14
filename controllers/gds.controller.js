@@ -239,11 +239,12 @@ exports.findPassenger = async (req, res) => {
 
 /**
  * POST /api/gds/:provider/sell
- * Body: { serviceId, connectionId, originId, destinationId, ticketCount, totalAmount, seats }
+ * Body: { company, serviceId, connectionId, originId, destinationId, ticketCount, totalAmount, seats }
  */
 exports.sell = async (req, res) => {
   const provider = getProvider(req);
   const {
+    company,
     serviceId,
     connectionId,
     originId,
@@ -254,6 +255,7 @@ exports.sell = async (req, res) => {
   } = req.body || {};
 
   if (
+    !company ||
     !serviceId ||
     !connectionId ||
     !originId ||
@@ -268,7 +270,7 @@ exports.sell = async (req, res) => {
       status: "error",
       error: {
         message:
-          "Faltan parámetros: serviceId, connectionId, originId, destinationId, ticketCount, totalAmount, seats",
+          "Faltan parámetros: company, serviceId, connectionId, originId, destinationId, ticketCount, totalAmount, seats",
       },
     });
   }
