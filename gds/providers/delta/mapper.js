@@ -74,11 +74,23 @@ function parseDataSet(xml, tableTag = null) {
     const errorData = Array.isArray(contentElement.TablaError)
       ? contentElement.TablaError[0]
       : contentElement.TablaError;
-    const desc =
-      errorData && errorData.Descripcion
-        ? String(errorData.Descripcion).trim()
-        : "Error devuelto por Delta";
-    throw new Error(`Delta API: ${desc}`);
+
+    // En Venta3, Delta devuelve <CodigoError>0</CodigoError> o <Error>0</Error> para indicar ÉXITO
+    const codigoError = errorData.CodigoError || errorData.Error || "1";
+    if (String(codigoError).trim() !== "0") {
+      const desc =
+        errorData && errorData.Descripcion && String(errorData.Descripcion).trim()
+          ? String(errorData.Descripcion).trim()
+          : null;
+      const codeStr = String(codigoError).trim();
+      const message = desc
+        ? `Delta API [${codeStr}]: ${desc}`
+        : `Delta API error (CodigoError: ${codeStr})`;
+      const err = new Error(message);
+      err.code = codeStr;
+      err.description = desc;
+      throw err;
+    }
   }
 
   // Determinar tag de fila: el pasado por parámetro, o el primero que aparezca
@@ -135,11 +147,22 @@ function parseDataSetAll(xml) {
     const errorData = Array.isArray(contentElement.TablaError)
       ? contentElement.TablaError[0]
       : contentElement.TablaError;
-    const desc =
-      errorData && errorData.Descripcion
-        ? String(errorData.Descripcion).trim()
-        : "Error devuelto por Delta";
-    throw new Error(`Delta API: ${desc}`);
+
+    const codigoError = errorData.CodigoError || errorData.Error || "1";
+    if (String(codigoError).trim() !== "0") {
+      const desc =
+        errorData && errorData.Descripcion && String(errorData.Descripcion).trim()
+          ? String(errorData.Descripcion).trim()
+          : null;
+      const codeStr = String(codigoError).trim();
+      const message = desc
+        ? `Delta API [${codeStr}]: ${desc}`
+        : `Delta API error (CodigoError: ${codeStr})`;
+      const err = new Error(message);
+      err.code = codeStr;
+      err.description = desc;
+      throw err;
+    }
   }
 
   const result = {};
@@ -345,7 +368,8 @@ function mapUnblock(rawValue, connectionId) {
 function mapSell(rows) {
   if (!rows.length) return { success: false, error: "Sin respuesta de Delta" };
   const r = rows[0];
-  const errVal = r.Error !== undefined ? r.Error : r._value || "-1";
+  // Delta puede contestar con <Error> o <CodigoError>
+  const errVal = r.Error !== undefined ? r.Error : (r.CodigoError !== undefined ? r.CodigoError : r._value || "-1");
   const ok = String(errVal) === "0";
   return {
     success: ok,
@@ -468,12 +492,14 @@ function buildStringButacas(passengers) {
         .padEnd(2, " ")
         .slice(0, 2);
       const imp = Math.round(parseFloat(p.amount || 0) * 100);
-      const ttt = String(imp).padStart(15, "0");
-      const ppp = String(p.ticketNumber || "0").padStart(13, "0");
-      const d = String(p.docType || "").slice(0, 1);
+      const ttt = String(imp).padStart(15, "0"); // T x 15
+      const ppp = String(p.ticketNumber || "0")
+        .padStart(15, "0")
+        .slice(-15); // P x 15
+      const d = String(p.docType || "").slice(0, 1); // D x 1
       const nnn = String(p.docNumber || "")
-        .padStart(17, " ")
-        .slice(-17);
+        .padStart(15, " ")
+        .slice(-15); // N x 15
       return `${bbb}${cc}${ttt}${ppp}${d}${nnn}`;
     })
     .join("");

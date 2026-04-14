@@ -284,10 +284,28 @@ async function sell({
       ImporteTotal: String(totalAmount),
       StringButacas: stringButacas,
     });
+
+    console.log("==== XML DE RESPUESTA DELTA (Venta3) ====");
+    console.log(xml);
+    console.log("=========================================");
+
     const rows = mapper.parseDataSet(xml);
     const result = mapper.mapSell(rows);
     return success(PROVIDER, "sell", result);
   } catch (err) {
+    // Si el error viene de TablaError de Delta, incluir código y descripción estructurados
+    if (err.code) {
+      return {
+        provider: PROVIDER,
+        operation: "sell",
+        status: "error",
+        error: {
+          message: err.message,
+          errorCode: err.code,
+          description: err.description || null,
+        },
+      };
+    }
     return error(PROVIDER, "sell", err.message);
   }
 }

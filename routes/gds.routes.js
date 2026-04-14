@@ -36,8 +36,8 @@ router.post("/:provider/block", auth(), ctrl.block);
 router.post("/:provider/unblock", auth(), ctrl.unblock);
 
 // ─── Pasajeros ─────────────────────────────────────────────────────────────────
-router.post("/:provider/passengers", auth(), ctrl.createPassenger);
-router.get("/:provider/passengers", auth(), ctrl.findPassenger);
+router.post("/:provider/createPassenger", auth(), ctrl.createPassenger);
+router.post("/:provider/findPassenger", auth(), ctrl.findPassenger);
 
 // ─── Venta ─────────────────────────────────────────────────────────────────────
 router.post("/:provider/sell", auth(), ctrl.sell);

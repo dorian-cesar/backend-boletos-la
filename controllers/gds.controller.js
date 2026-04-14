@@ -215,12 +215,12 @@ exports.createPassenger = async (req, res) => {
 };
 
 /**
- * GET /api/gds/:provider/passengers
- * Query: docType, docNumber
+ * POST /api/gds/:provider/findPassenger
+ * Body: { docType, docNumber }
  */
 exports.findPassenger = async (req, res) => {
   const provider = getProvider(req);
-  const { docType, docNumber } = req.query;
+  const { docType, docNumber } = req.body || {};
 
   if (!docType || !docNumber) {
     return res.status(400).json({
