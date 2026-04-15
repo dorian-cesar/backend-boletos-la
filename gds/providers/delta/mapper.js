@@ -29,6 +29,26 @@ function _findElement(obj, name) {
 }
 
 /**
+ * Inteligencia para extraer el valor de un nodo parseado por fast-xml-parser.
+ * Maneja nodos con atributos (que vienen como { '#text': '...', 'attr': '...' })
+ * devolviendo solo el texto limpio.
+ */
+function _getValue(val) {
+  if (val === null || val === undefined) return "";
+  if (typeof val !== "object") return String(val).trim();
+
+  // Si tiene #text (estándar de fast-xml-parser para texto con atributos)
+  if (val["#text"] !== undefined) return String(val["#text"]).trim();
+
+  // Fallback a JSON stringify para no perder estructura si es un objeto real
+  try {
+    return JSON.stringify(val);
+  } catch (e) {
+    return String(val);
+  }
+}
+
+/**
  * Convierte el XML de un .NET DataSet en un array de filas JS.
  *
  * @param {string} xml
@@ -52,13 +72,11 @@ function parseDataSet(xml, tableTag = null) {
 
   // Para respuestas primitivas: int, double, string
   const primitiveInt = _findElement(parsed, "int");
-  if (primitiveInt !== null) return [{ _value: String(primitiveInt).trim() }];
+  if (primitiveInt !== null) return [{ _value: _getValue(primitiveInt) }];
   const primitiveDouble = _findElement(parsed, "double");
-  if (primitiveDouble !== null)
-    return [{ _value: String(primitiveDouble).trim() }];
+  if (primitiveDouble !== null) return [{ _value: _getValue(primitiveDouble) }];
   const primitiveString = _findElement(parsed, "string");
-  if (primitiveString !== null)
-    return [{ _value: String(primitiveString).trim() }];
+  if (primitiveString !== null) return [{ _value: _getValue(primitiveString) }];
 
   // Extraer bloque diffgram
   const diffgram = _findElement(parsed, "diffgr:diffgram");
@@ -77,18 +95,15 @@ function parseDataSet(xml, tableTag = null) {
       : contentElement.TablaError;
 
     // En Venta3, Delta devuelve <CodigoError>0</CodigoError> o <Error>0</Error> para indicar ÉXITO
-    const codigoError = errorData.CodigoError || errorData.Error || "1";
-    if (String(codigoError).trim() !== "0") {
-      const desc =
-        errorData && errorData.Descripcion && String(errorData.Descripcion).trim()
-          ? String(errorData.Descripcion).trim()
-          : null;
-      const codeStr = String(codigoError).trim();
+    const codigoError = _getValue(errorData.CodigoError || errorData.Error || "1");
+    if (codigoError !== "0") {
+      const desc = _getValue(errorData.Descripcion);
       const message = desc
-        ? `Delta API [${codeStr}]: ${desc}`
-        : `Delta API error (CodigoError: ${codeStr})`;
+        ? `Delta API [${codigoError}]: ${desc}`
+        : `Delta API error (CodigoError: ${codigoError})`;
+
       const err = new Error(message);
-      err.code = codeStr;
+      err.code = codigoError;
       err.description = desc;
       throw err;
     }
@@ -114,12 +129,7 @@ function parseDataSet(xml, tableTag = null) {
     if (r && typeof r === "object") {
       for (const k of Object.keys(r)) {
         if (k === "diffgr:id") continue;
-        if (typeof r[k] === "object") {
-          // Ignorar nodos anidados complejos o vacíos
-          finalRow[k] = "";
-        } else {
-          finalRow[k] = r[k] != null ? String(r[k]).trim() : "";
-        }
+        finalRow[k] = _getValue(r[k]);
       }
     }
     return finalRow;
@@ -150,18 +160,14 @@ function parseDataSetAll(xml) {
       ? contentElement.TablaError[0]
       : contentElement.TablaError;
 
-    const codigoError = errorData.CodigoError || errorData.Error || "1";
-    if (String(codigoError).trim() !== "0") {
-      const desc =
-        errorData && errorData.Descripcion && String(errorData.Descripcion).trim()
-          ? String(errorData.Descripcion).trim()
-          : null;
-      const codeStr = String(codigoError).trim();
+    const codigoError = _getValue(errorData.CodigoError || errorData.Error || "1");
+    if (codigoError !== "0") {
+      const desc = _getValue(errorData.Descripcion);
       const message = desc
-        ? `Delta API [${codeStr}]: ${desc}`
-        : `Delta API error (CodigoError: ${codeStr})`;
+        ? `Delta API [${codigoError}]: ${desc}`
+        : `Delta API error (CodigoError: ${codigoError})`;
       const err = new Error(message);
-      err.code = codeStr;
+      err.code = codigoError;
       err.description = desc;
       throw err;
     }
@@ -177,11 +183,7 @@ function parseDataSetAll(xml) {
       if (r && typeof r === "object") {
         for (const k of Object.keys(r)) {
           if (k === "diffgr:id") continue;
-          if (typeof r[k] === "object") {
-            finalRow[k] = "";
-          } else {
-            finalRow[k] = r[k] != null ? String(r[k]).trim() : "";
-          }
+          finalRow[k] = _getValue(r[k]);
         }
       }
       return finalRow;
@@ -401,9 +403,11 @@ function mapSell(rows) {
   // Delta puede contestar con <Error> o <CodigoError>
   const errVal = r.Error !== undefined ? r.Error : (r.CodigoError !== undefined ? r.CodigoError : r._value || "-1");
   const ok = String(errVal) === "0";
+  const desc = _getValue(r.Descripcion);
+
   return {
     success: ok,
-    error: ok ? null : r.Descripcion || `Error Delta: ${errVal}`,
+    error: ok ? null : desc || `Error Delta: ${errVal}`,
     raw: r,
   };
 }

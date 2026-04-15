@@ -43,8 +43,6 @@ router.post("/:provider/findPassenger", auth(), ctrl.findPassenger);
 router.post("/:provider/sell", auth(), ctrl.sell);
 
 // ─── Consulta de boleto ────────────────────────────────────────────────────────
-
-// ─── Consulta de boleto ────────────────────────────────────────────────────────
 router.get("/:provider/tickets/:ticketNumber", auth(), ctrl.queryTicket);
 router.get("/:provider/tickets/:ticketNumber/qr", auth(), ctrl.queryTicketQR);
 
