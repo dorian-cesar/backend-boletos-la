@@ -11,7 +11,8 @@
 const { XMLParser } = require("fast-xml-parser");
 
 const parser = new XMLParser({
-  ignoreAttributes: true,
+  ignoreAttributes: false,
+  attributeNamePrefix: "",
   parseTagValue: false, // mantiene los valores como strings
 });
 
@@ -112,6 +113,7 @@ function parseDataSet(xml, tableTag = null) {
     const finalRow = {};
     if (r && typeof r === "object") {
       for (const k of Object.keys(r)) {
+        if (k === "diffgr:id") continue;
         if (typeof r[k] === "object") {
           // Ignorar nodos anidados complejos o vacíos
           finalRow[k] = "";
@@ -174,6 +176,7 @@ function parseDataSetAll(xml) {
       const finalRow = {};
       if (r && typeof r === "object") {
         for (const k of Object.keys(r)) {
+          if (k === "diffgr:id") continue;
           if (typeof r[k] === "object") {
             finalRow[k] = "";
           } else {
@@ -282,8 +285,23 @@ function mapSearch(rows, originId, destinationId) {
  * El ID único de butaca se construye como Piso+Fila+Columna ya que
  * Delta no devuelve un IdButaca explícito.
  */
-function mapAvailability(rows, serviceId) {
+function mapAvailability(rowsOrAll, serviceId) {
   const byFloor = {};
+
+  let rows = [];
+  let serviceInfo = {};
+
+  if (Array.isArray(rowsOrAll)) {
+    rows = rowsOrAll;
+  } else if (rowsOrAll && typeof rowsOrAll === "object") {
+    // Si viene de parseDataSetAll, extraemos las tablas correspondientes
+    rows = rowsOrAll.PlanoxIdServicioSyB2 || [];
+    const infoRows = rowsOrAll.PlanoxIdServicioSyB21 || [];
+    serviceInfo = infoRows[0] || {};
+  }
+
+  const empresa = serviceInfo.Empresa || "";
+  const calidad = serviceInfo.CalidadA || "";
 
   rows.forEach((r) => {
     const floor = parseInt(r.Piso || "1") || 1;
@@ -293,8 +311,20 @@ function mapAvailability(rows, serviceId) {
     const columna = r.Columna ? parseInt(r.Columna) : null;
     const texto = r.Texto ? r.Texto.trim() : null;
 
+    // ID sintético anterior se convierte en 'layout'
+    const oldId = `${floor}-${fila}-${columna}`;
+
+    // Nuevo ID sale de msdata:rowOrder (atributo del XML)
+    // El parser con attributeNamePrefix="" deja la clave tal cual
+    const rowOrder =
+      r["msdata:rowOrder"] !== undefined ? parseInt(r["msdata:rowOrder"]) : 0;
+
     byFloor[floor].push({
-      id: `${floor}-${fila}-${columna}`, // ID sintético único
+      ...r, // Todos los campos reales afuera del raw
+      id: rowOrder,
+      layout: oldId,
+      calidad,
+      empresa,
       number: texto, // número visible en pantalla
       status: mapSeatStatus(r.Estado),
       color: r.Color || null,

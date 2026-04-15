@@ -82,8 +82,8 @@ async function availability({ serviceId, originId, destinationId }) {
       IdParadas_Origen: originId,
       IdParadas_Destino: destinationId,
     });
-    const rows = mapper.parseDataSet(xml);
-    const data = mapper.mapAvailability(rows, serviceId);
+    const allTables = mapper.parseDataSetAll(xml);
+    const data = mapper.mapAvailability(allTables, serviceId);
     return success(PROVIDER, "availability", data);
   } catch (err) {
     return error(PROVIDER, "availability", err.message);
