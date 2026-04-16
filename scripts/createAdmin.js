@@ -12,7 +12,7 @@ const ADMIN = {
   name: "Admin",
   rut: "11111111-1",
   email: "admin@wit.la",
-  password: "12345678",
+  password: "witla951",
   role: "superAdmin",
   activo: true,
 };
