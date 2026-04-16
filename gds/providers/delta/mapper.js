@@ -95,7 +95,9 @@ function parseDataSet(xml, tableTag = null) {
       : contentElement.TablaError;
 
     // En Venta3, Delta devuelve <CodigoError>0</CodigoError> o <Error>0</Error> para indicar ÉXITO
-    const codigoError = _getValue(errorData.CodigoError || errorData.Error || "1");
+    const codigoError = _getValue(
+      errorData.CodigoError || errorData.Error || "1",
+    );
     if (codigoError !== "0") {
       const desc = _getValue(errorData.Descripcion);
       const message = desc
@@ -160,7 +162,9 @@ function parseDataSetAll(xml) {
       ? contentElement.TablaError[0]
       : contentElement.TablaError;
 
-    const codigoError = _getValue(errorData.CodigoError || errorData.Error || "1");
+    const codigoError = _getValue(
+      errorData.CodigoError || errorData.Error || "1",
+    );
     if (codigoError !== "0") {
       const desc = _getValue(errorData.Descripcion);
       const message = desc
@@ -265,7 +269,7 @@ function mapSearch(rows, originId, destinationId) {
         availableSeats: r.Libres ? parseInt(r.Libres) : 0,
         totalSeats: null,
         currency: "PYG",
-        minFare: !isNaN(tarifa) && tarifa > 0 ? tarifa : null,
+        minFare: !isNaN(tarifa) ? tarifa : null,
         faresText: r.TextoTarifas || null,
         faresTextFull: r.TextoTarifasFull || null,
         raw: r,
@@ -401,7 +405,12 @@ function mapSell(rows) {
   if (!rows.length) return { success: false, error: "Sin respuesta de Delta" };
   const r = rows[0];
   // Delta puede contestar con <Error> o <CodigoError>
-  const errVal = r.Error !== undefined ? r.Error : (r.CodigoError !== undefined ? r.CodigoError : r._value || "-1");
+  const errVal =
+    r.Error !== undefined
+      ? r.Error
+      : r.CodigoError !== undefined
+        ? r.CodigoError
+        : r._value || "-1";
   const ok = String(errVal) === "0";
   const desc = _getValue(r.Descripcion);
 
