@@ -288,25 +288,29 @@ async function sell({
 
     // Si seats es un array de objetos, asignar número de boleto a los que no lo tienen
     if (Array.isArray(seats)) {
-      processedSeats = await Promise.all(
-        seats.map(async (seat) => {
-          if (!seat.ticketNumber) {
-            const ticketXml = await client.boletosProximoNumeroLibre({
-              EmpresaBoleto: company,
-            });
-            const ticketNumber = String(
-              mapper.parsePrimitive(ticketXml),
-            ).trim();
-            if (!ticketNumber || ticketNumber === "null") {
-              throw new Error(
-                `No se pudo obtener número de boleto para butaca ${seat.seat}`,
-              );
-            }
-            return { ...seat, ticketNumber };
-          }
-          return seat;
-        }),
-      );
+      let currentTicketNumber = null;
+      let nextOffset = 0;
+
+      const hasMissingTickets = seats.some((s) => !s.ticketNumber);
+      if (hasMissingTickets) {
+        const ticketXml = await client.boletosProximoNumeroLibre({
+          EmpresaBoleto: company,
+        });
+        currentTicketNumber = String(mapper.parsePrimitive(ticketXml)).trim();
+        if (!currentTicketNumber || currentTicketNumber === "null") {
+          throw new Error("No se pudo obtener el número de boleto base de Delta");
+        }
+      }
+
+      processedSeats = seats.map((seat) => {
+        if (!seat.ticketNumber) {
+          const originalLength = currentTicketNumber.length;
+          const seatTicket = String(BigInt(currentTicketNumber) + BigInt(nextOffset)).padStart(originalLength, "0");
+          nextOffset++;
+          return { ...seat, ticketNumber: seatTicket };
+        }
+        return seat;
+      });
       assignedTicketNumbers = processedSeats.map((s) => s.ticketNumber);
     }
 
