@@ -158,6 +158,7 @@ exports.block = async (req, res) => {
     });
   }
 
+  console.log(`[GDS:BLOCK] serviceId: ${serviceId}, seats: ${seats}`);
   const result = await gds.block(provider, {
     serviceId,
     originId,
@@ -165,6 +166,7 @@ exports.block = async (req, res) => {
     seats,
     connectionId,
   });
+  console.log(`[GDS:BLOCK] status: ${result.status}`);
   send(res, result);
 };
 
@@ -185,7 +187,9 @@ exports.unblock = async (req, res) => {
     });
   }
 
+  console.log(`[GDS:UNBLOCK] connectionId: ${connectionId}`);
   const result = await gds.unblock(provider, { connectionId });
+  console.log(`[GDS:UNBLOCK] status: ${result.status}`);
   send(res, result);
 };
 
@@ -210,7 +214,9 @@ exports.createPassenger = async (req, res) => {
     });
   }
 
+  console.log(`[GDS:CREATE_PASSENGER] name: ${name} ${lastName}, doc: ${docNumber}`);
   const result = await gds.createPassenger(provider, req.body);
+  console.log(`[GDS:CREATE_PASSENGER] status: ${result.status}`);
   send(res, result);
 };
 
@@ -275,7 +281,9 @@ exports.sell = async (req, res) => {
     });
   }
 
+  console.log(`[GDS:SELL] serviceId: ${serviceId}, seats: ${seats}`);
   const result = await gds.sell(provider, req.body);
+  console.log(`[GDS:SELL] status: ${result.status}`);
   send(res, result);
 };
 
