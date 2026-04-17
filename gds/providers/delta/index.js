@@ -199,13 +199,18 @@ async function unblock({ connectionId }) {
  */
 async function createPassenger(passenger) {
   try {
+    // Asegurarse de que la fecha tenga formato AAAA-MM-DD
+    let formattedBirthDate = passenger.birthDate || "";
+    // Reemplaza barras por guiones para cumplir con el formato que espera Delta
+    formattedBirthDate = formattedBirthDate.replace(/\//g, "-");
+
     const xml = await client.pasajerosAlta({
       TipoDocumento: passenger.docType,
       NroDocumento: passenger.docNumber,
       Apellido: passenger.lastName,
       Nombre: passenger.name,
       Ocupacion: passenger.occupation || "",
-      FechaNacimiento: passenger.birthDate || "",
+      FechaNacimiento: formattedBirthDate,
       Sexo: passenger.gender || "",
       Nacionalidad: passenger.nationality || "",
       PaisResidencia: passenger.country || "",

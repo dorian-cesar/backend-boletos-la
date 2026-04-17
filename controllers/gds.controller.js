@@ -197,19 +197,42 @@ exports.unblock = async (req, res) => {
 
 /**
  * POST /api/gds/:provider/passengers
- * Body: { docType, docNumber, name, lastName, ...opcionales }
+ * Body: { docType, docNumber, name, lastName, phone, occupation, birthDate, gender, nationality, country }
  */
 exports.createPassenger = async (req, res) => {
   const provider = getProvider(req);
-  const { docType, docNumber, name, lastName } = req.body || {};
+  const {
+    docType,
+    docNumber,
+    name,
+    lastName,
+    phone,
+    occupation,
+    birthDate,
+    gender,
+    nationality,
+    country,
+  } = req.body || {};
 
-  if (!docType || !docNumber || !name || !lastName) {
+  if (
+    !docType ||
+    !docNumber ||
+    !name ||
+    !lastName ||
+    !phone ||
+    !occupation ||
+    !birthDate ||
+    !gender ||
+    !nationality ||
+    !country
+  ) {
     return res.status(400).json({
       provider,
       operation: "createPassenger",
       status: "error",
       error: {
-        message: "Faltan parámetros: docType, docNumber, name, lastName",
+        message:
+          "Faltan parámetros: docType, docNumber, name, lastName, phone, occupation, birthDate, gender, nationality, country",
       },
     });
   }
