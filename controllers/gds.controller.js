@@ -67,6 +67,17 @@ exports.search = async (req, res) => {
   }
 
   const result = await gds.search(provider, { originId, destinationId, date });
+
+  // Filtrar los servicios pasados o que salen en menos de 2 horas (basado en UTC)
+  if (result && result.status === "success" && result.data && Array.isArray(result.data.trips)) {
+    const minDepartureTimeMs = Date.now() + 2 * 60 * 60 * 1000;
+    result.data.trips = result.data.trips.filter((trip) => {
+      if (!trip.departureTime) return true;
+      const departureMs = new Date(trip.departureTime).getTime();
+      return isNaN(departureMs) ? true : departureMs > minDepartureTimeMs;
+    });
+  }
+
   send(res, result);
 };
 
