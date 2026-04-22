@@ -316,8 +316,29 @@ exports.sell = async (req, res) => {
   }
 
   console.log(`[GDS:SELL] serviceId: ${serviceId}, seats: ${seats}`);
-  const result = await gds.sell(provider, req.body);
-  console.log(`[GDS:SELL] status: ${result.status}`);
+
+  let result;
+  let attempts = 0;
+  const maxRetries = 3;
+
+  while (attempts <= maxRetries) {
+    result = await gds.sell(provider, req.body);
+    console.log(`[GDS:SELL] Attempt ${attempts + 1}, status: ${result.status}`);
+
+    if (result.status === "success") break;
+
+    // Si el error tiene errorCode "0", lo consideramos exitoso y paramos
+    const errorCode = result.error?.errorCode;
+    if (errorCode === "0") break;
+
+    attempts++;
+    if (attempts <= maxRetries) {
+      console.log(`[GDS:SELL] Error detected (errorCode: ${errorCode}). Retrying ${attempts}/${maxRetries}...`);
+      // Espera opcional de 1 segundo entre reintentos
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+
   send(res, result);
 };
 
