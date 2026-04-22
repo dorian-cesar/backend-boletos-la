@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const rateLimit = require("express-rate-limit");
 
 //crons
 const startReleaseSeatsCron = require("./cron/releaseSeats.cron");
@@ -12,8 +13,23 @@ const routes = require("./routes/index.routes");
 const app = express();
 
 //middlewares
+app.set("trust proxy", 1);
 app.use(cors());
 app.use(express.json());
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 20, // Limita cada IP a 100 solicitudes por ventana (windowMs)
+  standardHeaders: true, // Retorna info de rate limit en los headers `RateLimit-*`
+  legacyHeaders: false, // Desactiva los headers `X-RateLimit-*`
+  message: {
+    status: 429,
+    message:
+      "Demasiadas solicitudes desde esta IP, por favor intente de nuevo en 15 minutos",
+  },
+});
+
+app.use(limiter);
 
 //rutas
 app.use("/api", routes);
