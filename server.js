@@ -19,7 +19,7 @@ app.use(express.json());
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 20, // Limita cada IP a 100 solicitudes por ventana (windowMs)
+  max: 100, // Limita cada IP a 100 solicitudes por ventana (windowMs)
   standardHeaders: true, // Retorna info de rate limit en los headers `RateLimit-*`
   legacyHeaders: false, // Desactiva los headers `X-RateLimit-*`
   message: {
@@ -29,7 +29,7 @@ const limiter = rateLimit({
   },
 });
 
-app.use(limiter);
+// app.use(limiter);
 
 //rutas
 app.use("/api", routes);
