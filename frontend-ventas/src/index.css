@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+/* Opciones de personalización global */
+body {
+  background-color: #030712; /* Gray 950 */
+  color: #f9fafb; /* Gray 50 */
+  font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+/* Transiciones globales suaves */
+* {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+/* Estilo para barra de scroll elegante */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #030712;
+}
+::-webkit-scrollbar-thumb {
+  background: #1f2937;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #374151;
+}
+
+/* CSS para Impresión de Boletos */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-ticket, #printable-ticket * {
+    visibility: visible;
+  }
+  #printable-ticket {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    border: none !important;
+    box-shadow: none !important;
+    background: white !important;
+    color: black !important;
+  }
+  /* Ocultar elementos no deseados al imprimir */
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* Animaciones personalizadas */
+@keyframes loading-bar {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.animate-loading-bar {
+  animation: loading-bar 2.5s ease-in-out infinite;
+}
+

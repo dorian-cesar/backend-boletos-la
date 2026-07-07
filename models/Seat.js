@@ -1,6 +1,16 @@
 // models/Seat.js
 const mongoose = require('mongoose');
 
+const reservationSchema = new mongoose.Schema({
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  origin: { type: mongoose.Schema.Types.ObjectId, ref: 'City', required: true },
+  destination: { type: mongoose.Schema.Types.ObjectId, ref: 'City', required: true },
+  originOrder: { type: Number, required: true },
+  destinationOrder: { type: Number, required: true },
+  status: { type: String, enum: ['reserved', 'confirmed'], required: true },
+  holdUntil: { type: Date, default: null }
+}, { _id: false });
+
 const seatSchema = new mongoose.Schema({
   service: { type: mongoose.Schema.Types.ObjectId, ref: 'Service', required: true },
   code: { type: String, required: true },
@@ -21,7 +31,8 @@ const seatSchema = new mongoose.Schema({
     landingStop: String,
     boarded: { type: Boolean, default: false },
     landed: { type: Boolean, default: false }
-  }
+  },
+  reservations: { type: [reservationSchema], default: [] }
 }, { timestamps: true });
 
 // Método para reserva temporal

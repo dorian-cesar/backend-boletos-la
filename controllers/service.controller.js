@@ -116,7 +116,9 @@ exports.getServicesByFilter = async (req, res) => {
     })
       .populate('layout')
       .populate('bus')
-      .populate('crew.user');
+      .populate('crew.user')
+      .populate('seats')
+      .lean();
 
     // Filtrar por orden de paradas
     const servicesFiltered = servicesRaw.filter(service => {
@@ -124,6 +126,44 @@ exports.getServicesByFilter = async (req, res) => {
       const depDest = service.departures.find(d => d.stop === destination);
       return depOrigin && depDest && depOrigin.order < depDest.order;
     });
+
+    // Procesar disponibilidad de asientos por tramo
+    for (const service of servicesFiltered) {
+      const depOrigin = service.departures.find(d => d.stop === origin);
+      const depDest = service.departures.find(d => d.stop === destination);
+      if (depOrigin && depDest) {
+        const originOrder = depOrigin.order;
+        const destOrder = depDest.order;
+        const now = new Date();
+
+        service.seats = service.seats.map(seatDoc => {
+          const seat = seatDoc.toObject ? seatDoc.toObject() : seatDoc;
+          if (seat.reservations && seat.reservations.length > 0) {
+            const activeReservation = seat.reservations.find(r => {
+              const isActive = r.status === 'confirmed' || (r.status === 'reserved' && r.holdUntil && new Date(r.holdUntil) > now);
+              if (!isActive) return false;
+              return originOrder < r.destinationOrder && r.originOrder < destOrder;
+            });
+            if (activeReservation) {
+              seat.status = activeReservation.status;
+              seat.isAvailable = false;
+              seat.holdUntil = activeReservation.holdUntil;
+              seat.passenger = {
+                user: activeReservation.user,
+                origin: activeReservation.origin,
+                destination: activeReservation.destination
+              };
+            } else {
+              seat.status = 'available';
+              seat.isAvailable = true;
+              seat.holdUntil = null;
+              seat.passenger = null;
+            }
+          }
+          return seat;
+        });
+      }
+    }
 
     return res.status(200).json({ services: servicesFiltered });
 
@@ -183,11 +223,12 @@ exports.getServicesByID = async (req, res) => {
       };
     });
 
+    const { origin, destination } = req.query;
     const serviceObj = service.toObject();
     serviceObj.departures = departuresForClient;
 
-    // reemplazamos layout.seatMap con los asientos reales
-    serviceObj.layout = buildSeatMap(serviceObj);
+    // reemplazamos layout.seatMap con los asientos reales con filtros de tramo
+    serviceObj.layout = buildSeatMap(serviceObj, origin, destination);
 
     delete serviceObj.seats;
 
