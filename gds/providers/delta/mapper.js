@@ -537,12 +537,12 @@ function buildStringButacas(passengers) {
       const imp = Math.round(parseFloat(p.amount || 0) * 100);
       const ttt = String(imp).padStart(15, "0"); // T x 15
       const ppp = String(p.ticketNumber || "0")
-        .padStart(15, "0")
-        .slice(-15); // P x 15
+        .padStart(13, "0")
+        .slice(-13); // P x 13
       const d = String(p.docType || "").slice(0, 1); // D x 1
       const nnn = String(p.docNumber || "")
-        .padEnd(15, " ")
-        .slice(0, 15); // N x 15
+        .padEnd(17, " ")
+        .slice(0, 17); // N x 17
       return `${bbb}${cc}${ttt}${ppp}${d}${nnn}`;
     })
     .join("");
