@@ -324,22 +324,20 @@ async function sell({
         ? processedSeats
         : mapper.buildStringButacas(processedSeats);
 
-    // --- MOCK TEMPORAL PARA PRUEBAS DE PAGO ---
-    // const xml = await client.venta3({
-    //   IdServicios: serviceId,
-    //   NroConexion: connectionId,
-    //   IdParadas_Origen: originId,
-    //   IdParadas_Destino: destinationId,
-    //   CantBoletos: ticketCount,
-    //   ImporteTotal: String(totalAmount),
-    //   StringButacas: stringButacas,
-    // });
-    // const rows = mapper.parseDataSet(xml);
-    // const result = mapper.mapSell(rows);
+    const xml = await client.venta3({
+      IdServicios: serviceId,
+      NroConexion: connectionId,
+      IdParadas_Origen: originId,
+      IdParadas_Destino: destinationId,
+      CantBoletos: ticketCount,
+      ImporteTotal: String(totalAmount),
+      StringButacas: stringButacas,
+    });
+    const rows = mapper.parseDataSet(xml);
+    const result = mapper.mapSell(rows);
 
     return success(PROVIDER, "sell", {
-      success: true,
-      mocked: true,
+      ...result,
       ticketNumbers: assignedTicketNumbers,
       company,
     });
