@@ -302,7 +302,6 @@ async function sell({
           EmpresaBoleto: company,
         });
         currentTicketNumber = String(mapper.parsePrimitive(ticketXml)).trim();
-        console.log(`[DEBUG GDS:SELL] BoletosProximoNumeroLibre (Empresa: ${company}):`, currentTicketNumber);
         if (!currentTicketNumber || currentTicketNumber === "null") {
           throw new Error("No se pudo obtener el número de boleto base de Delta");
         }
@@ -325,17 +324,6 @@ async function sell({
         ? processedSeats
         : mapper.buildStringButacas(processedSeats);
 
-    console.log("[DEBUG GDS:SELL] StringButacas:", JSON.stringify(stringButacas));
-    console.log("[DEBUG GDS:SELL] Venta3 Params:", {
-      IdServicios: serviceId,
-      NroConexion: connectionId,
-      IdParadas_Origen: originId,
-      IdParadas_Destino: destinationId,
-      CantBoletos: ticketCount,
-      ImporteTotal: String(totalAmount),
-      StringButacas: stringButacas,
-    });
-
     const xml = await client.venta3({
       IdServicios: serviceId,
       NroConexion: connectionId,
@@ -345,7 +333,6 @@ async function sell({
       ImporteTotal: String(totalAmount),
       StringButacas: stringButacas,
     });
-    console.log("[DEBUG GDS:SELL] XML Response:", xml);
     const rows = mapper.parseDataSet(xml);
     const result = mapper.mapSell(rows);
 
