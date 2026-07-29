@@ -46,23 +46,60 @@ app.use((req, res) => {
   res.status(404).json({ error: "Ruta no encontrada" });
 });
 
-const PORT = process.env.PORT;
+// const PORT = process.env.PORT;
+// const MONGO_URI = process.env.MONGO_URI;
+
+// mongoose
+//   .connect(MONGO_URI)
+//   .then(() => {
+//     console.log("Conectado a DB");
+//     startReleaseSeatsCron();
+
+//     if (process.env.NODE_ENV === "production") {
+//       startGenerateServicesCron();
+//     }
+
+//     app.listen(PORT, () => {
+//       process.env.NODE_ENV === "production"
+//         ? console.log(`Servidor en puerto: ${PORT}`)
+//         : console.log(`Servidor en desarrollo en http://localhost:${PORT}`);
+//     });
+//   })
+//   .catch((err) => console.error("Error en conexión a DB:", err));
+
+const PORT = process.env.PORT || 8080;
 const MONGO_URI = process.env.MONGO_URI;
-
-mongoose
-  .connect(MONGO_URI)
-  .then(() => {
-    console.log("Conectado a DB");
-    startReleaseSeatsCron();
-
-    if (process.env.NODE_ENV === "production") {
-      startGenerateServicesCron();
-    }
-
-    app.listen(PORT, () => {
-      process.env.NODE_ENV === "production"
-        ? console.log(`Servidor en puerto: ${PORT}`)
-        : console.log(`Servidor en desarrollo en http://localhost:${PORT}`);
+// Función para iniciar el servidor de Express
+const startServer = () => {
+  app.listen(PORT, () => {
+    process.env.NODE_ENV === "production"
+      ? console.log(`Servidor en puerto: ${PORT}`)
+      : console.log(`Servidor en desarrollo en http://localhost:${PORT}`);
+  });
+};
+// Intentar conectar a MongoDB opcionalmente
+if (MONGO_URI) {
+  mongoose
+    .connect(MONGO_URI)
+    .then(() => {
+      console.log("Conectado a DB (MongoDB)");
+      startReleaseSeatsCron();
+      if (process.env.NODE_ENV === "production") {
+        startGenerateServicesCron();
+      }
+    })
+    .catch((err) => {
+      console.warn(
+        "⚠️ No se pudo conectar a MongoDB. Continuando sin base de datos local:",
+        err.message,
+      );
+    })
+    .finally(() => {
+      startServer();
     });
-  })
-  .catch((err) => console.error("Error en conexión a DB:", err));
+} else {
+  console.warn(
+    "⚠️ MONGO_URI no definida. Servidor iniciado sin conexión a DB.",
+  );
+  startServer();
+}

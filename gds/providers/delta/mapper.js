@@ -541,8 +541,8 @@ function buildStringButacas(passengers) {
         .slice(-15); // P x 15
       const d = String(p.docType || "").slice(0, 1); // D x 1
       const nnn = String(p.docNumber || "")
-        .padEnd(17, " ")
-        .slice(0, 17); // N x 17
+        .padStart(15, " ")
+        .slice(-15); // N x 15
       return `${bbb}${cc}${ttt}${ppp}${d}${nnn}`;
     })
     .join("");
