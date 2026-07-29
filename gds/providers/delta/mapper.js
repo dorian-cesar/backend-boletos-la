@@ -530,20 +530,19 @@ function formatButacasBlock(seats) {
 function buildStringButacas(passengers) {
   return passengers
     .map((p) => {
-      const bbb = String(parseInt(p.seat || "0")).padStart(3, "0"); // BBB(3) - 0 a la izquierda
-      const cc = String(p.qualityCode || "  ")
+      const bbb = String(parseInt(p.seat || "0")).padStart(3, "0");
+      const cc = String(p.qualityCode || "")
         .padEnd(2, " ")
-        .slice(0, 2); // CC(2) - espacios a la derecha
+        .slice(0, 2);
       const imp = Math.round(parseFloat(p.amount || 0) * 100);
-      const ttt = String(imp).padStart(15, "0"); // T(15) - 0 a la izquierda
+      const ttt = String(imp).padStart(15, "0"); // T x 15
       const ppp = String(p.ticketNumber || "0")
         .padStart(15, "0")
-        .slice(-15); // P(15) - 0 a la izquierda
-      const d = String(p.docType || "C").toUpperCase().slice(0, 1); // D(1) - TiposDocumentoGrilla (C)
+        .slice(-15); // P x 15
+      const d = String(p.docType || "").slice(0, 1); // D x 1
       const nnn = String(p.docNumber || "")
-        .trim()
         .padStart(15, " ")
-        .slice(-15); // N(15) - espacios a la IZQUIERDA (según documento oficial)
+        .slice(-15); // N x 15
       return `${bbb}${cc}${ttt}${ppp}${d}${nnn}`;
     })
     .join("");
