@@ -15,6 +15,16 @@ function getProvider(req) {
   return (req.params.provider || req.query.provider || "delta").toLowerCase();
 }
 
+// Helper: extrae canal de los headers (ej. X-Channel), query o body, default 'web'
+function getChannel(req) {
+  return (
+    req.headers["x-channel"] ||
+    req.query.channel ||
+    (req.body && req.body.channel) ||
+    "web"
+  );
+}
+
 // Helper: responde con el resultado del GDS (ya viene normalizado)
 function send(res, result) {
   const httpStatus = result.status === "success" ? 200 : 400;
@@ -31,19 +41,22 @@ exports.listProviders = (req, res) => {
 
 exports.getStops = async (req, res) => {
   const provider = getProvider(req);
-  const result = await gds.getStops(provider);
+  const channel = getChannel(req);
+  const result = await gds.getStops(provider, { channel });
   send(res, result);
 };
 
 exports.getCountries = async (req, res) => {
   const provider = getProvider(req);
-  const result = await gds.getCountries(provider);
+  const channel = getChannel(req);
+  const result = await gds.getCountries(provider, { channel });
   send(res, result);
 };
 
 exports.getDocTypes = async (req, res) => {
   const provider = getProvider(req);
-  const result = await gds.getDocTypes(provider);
+  const channel = getChannel(req);
+  const result = await gds.getDocTypes(provider, { channel });
   send(res, result);
 };
 
@@ -55,6 +68,7 @@ exports.getDocTypes = async (req, res) => {
  */
 exports.search = async (req, res) => {
   const provider = getProvider(req);
+  const channel = getChannel(req);
   const { originId, destinationId, date } = req.query;
 
   if (!originId || !destinationId || !date) {
@@ -66,7 +80,7 @@ exports.search = async (req, res) => {
     });
   }
 
-  const result = await gds.search(provider, { originId, destinationId, date });
+  const result = await gds.search(provider, { originId, destinationId, date, channel });
 
   // Filtrar los servicios pasados o que salen en menos de 2 horas (basado en UTC)
   if (result && result.status === "success" && result.data && Array.isArray(result.data.trips)) {
@@ -89,6 +103,7 @@ exports.search = async (req, res) => {
  */
 exports.availability = async (req, res) => {
   const provider = getProvider(req);
+  const channel = getChannel(req);
   const { serviceId, originId, destinationId } = req.query;
 
   if (!serviceId || !originId || !destinationId) {
@@ -106,6 +121,7 @@ exports.availability = async (req, res) => {
     serviceId,
     originId,
     destinationId,
+    channel,
   });
   send(res, result);
 };
@@ -116,6 +132,7 @@ exports.availability = async (req, res) => {
  */
 exports.fares = async (req, res) => {
   const provider = getProvider(req);
+  const channel = getChannel(req);
   const { serviceId, originId, destinationId } = req.query;
 
   if (!serviceId || !originId || !destinationId) {
@@ -133,6 +150,7 @@ exports.fares = async (req, res) => {
     serviceId,
     originId,
     destinationId,
+    channel,
   });
   send(res, result);
 };
@@ -155,6 +173,7 @@ exports.generateConnection = async (req, res) => {
  */
 exports.block = async (req, res) => {
   const provider = getProvider(req);
+  const channel = getChannel(req);
   const { serviceId, originId, destinationId, seats, connectionId } =
     req.body || {};
 
@@ -169,13 +188,14 @@ exports.block = async (req, res) => {
     });
   }
 
-  console.log(`[GDS:BLOCK] serviceId: ${serviceId}, seats: ${seats}`);
+  console.log(`[GDS:BLOCK] serviceId: ${serviceId}, seats: ${seats}, channel: ${channel}`);
   const result = await gds.block(provider, {
     serviceId,
     originId,
     destinationId,
     seats,
     connectionId,
+    channel,
   });
   console.log(`[GDS:BLOCK] status: ${result.status}`);
   send(res, result);
@@ -212,6 +232,7 @@ exports.unblock = async (req, res) => {
  */
 exports.createPassenger = async (req, res) => {
   const provider = getProvider(req);
+  const channel = getChannel(req);
   const {
     docType,
     docNumber,
@@ -249,7 +270,7 @@ exports.createPassenger = async (req, res) => {
   }
 
   console.log(`[GDS:CREATE_PASSENGER] name: ${name} ${lastName}, doc: ${docNumber}`);
-  const result = await gds.createPassenger(provider, req.body);
+  const result = await gds.createPassenger(provider, { ...req.body, channel });
   console.log(`[GDS:CREATE_PASSENGER] status: ${result.status}`);
   send(res, result);
 };
@@ -283,6 +304,7 @@ exports.findPassenger = async (req, res) => {
  */
 exports.sell = async (req, res) => {
   const provider = getProvider(req);
+  const channel = getChannel(req);
   const {
     company,
     serviceId,
@@ -315,14 +337,14 @@ exports.sell = async (req, res) => {
     });
   }
 
-  console.log(`[GDS:SELL] serviceId: ${serviceId}, seats: ${seats}`);
+  console.log(`[GDS:SELL] serviceId: ${serviceId}, seats: ${seats}, channel: ${channel}`);
 
   let result;
   let attempts = 0;
   const maxRetries = 3;
 
   while (attempts <= maxRetries) {
-    result = await gds.sell(provider, req.body);
+    result = await gds.sell(provider, { ...req.body, channel });
     console.log(`[GDS:SELL] Attempt ${attempts + 1}, status: ${result.status}`);
 
     if (result.status === "success") break;

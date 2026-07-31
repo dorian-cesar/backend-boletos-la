@@ -11,11 +11,21 @@
 const http = require('http');
 
 const BASE_URL = process.env.DELTA_API_URL || 'http://38.247.139.43/WSdelta_Bol/wsdelta.asmx';
-const CREDENTIALS = {
-  Agencia: process.env.DELTA_AGENCIA,
-  Usuario: process.env.DELTA_USUARIO,
-  Password: process.env.DELTA_PASSWORD
-};
+
+/**
+ * Resuelve la agencia a utilizar según el canal o código pasado.
+ */
+function getAgencia(agenciaOpt) {
+  const opt = String(agenciaOpt || '').toLowerCase();
+  if (opt === 'totem') {
+    return process.env.DELTA_AGENCIA_TOTEM || 'BO1';
+  }
+  if (opt === 'web') {
+    return process.env.DELTA_AGENCIA_WEB || 'BO2';
+  }
+  // Si envían directamente el código ("BO1", "BO2") o si no se especificó nada
+  return agenciaOpt || process.env.DELTA_AGENCIA_WEB || process.env.DELTA_AGENCIA || 'BO2';
+}
 
 /**
  * Hace un GET al endpoint de Delta y devuelve el XML crudo como string.
@@ -24,7 +34,15 @@ const CREDENTIALS = {
  * @returns {Promise<string>} XML crudo de la respuesta
  */
 function call(method, params = {}) {
-  const allParams = { ...CREDENTIALS, ...params };
+  const { agencia: agenciaOpt, channel, agencyType, ...cleanParams } = params;
+
+  const credentials = {
+    Agencia: getAgencia(agenciaOpt || channel || agencyType),
+    Usuario: process.env.DELTA_USUARIO,
+    Password: process.env.DELTA_PASSWORD
+  };
+
+  const allParams = { ...credentials, ...cleanParams };
   const query = Object.entries(allParams)
     .filter(([, v]) => v !== undefined && v !== null)
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)

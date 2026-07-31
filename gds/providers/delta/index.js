@@ -13,9 +13,9 @@ const PROVIDER = "delta";
 
 // ─── Catálogos ─────────────────────────────────────────────────────────────────
 
-async function getStops() {
+async function getStops(params = {}) {
   try {
-    const xml = await client.obtenerParadasHomologadas();
+    const xml = await client.obtenerParadasHomologadas(params);
     const rows = mapper.parseDataSet(xml);
     return success(PROVIDER, "getStops", { stops: mapper.mapCatalog(rows) });
   } catch (err) {
@@ -23,9 +23,9 @@ async function getStops() {
   }
 }
 
-async function getCountries() {
+async function getCountries(params = {}) {
   try {
-    const xml = await client.paisesGrilla();
+    const xml = await client.paisesGrilla(params);
     const rows = mapper.parseDataSet(xml);
     return success(PROVIDER, "getCountries", {
       countries: mapper.mapCatalog(rows),
@@ -35,9 +35,9 @@ async function getCountries() {
   }
 }
 
-async function getDocTypes() {
+async function getDocTypes(params = {}) {
   try {
-    const xml = await client.tiposDocumentoGrilla();
+    const xml = await client.tiposDocumentoGrilla(params);
     const rows = mapper.parseDataSet(xml);
     return success(PROVIDER, "getDocTypes", {
       docTypes: mapper.mapCatalog(rows),

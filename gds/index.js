@@ -27,14 +27,14 @@ function listProviders() {
 
 // ─── Catálogos ─────────────────────────────────────────────────────────────────
 
-async function getStops(provider) {
+async function getStops(provider, params) {
   const p = getProvider(provider);
   if (!p)
     return error(provider, "getStops", `Proveedor '${provider}' no encontrado`);
-  return p.getStops();
+  return p.getStops(params);
 }
 
-async function getCountries(provider) {
+async function getCountries(provider, params) {
   const p = getProvider(provider);
   if (!p)
     return error(
@@ -42,10 +42,10 @@ async function getCountries(provider) {
       "getCountries",
       `Proveedor '${provider}' no encontrado`,
     );
-  return p.getCountries();
+  return p.getCountries(params);
 }
 
-async function getDocTypes(provider) {
+async function getDocTypes(provider, params) {
   const p = getProvider(provider);
   if (!p)
     return error(
@@ -53,7 +53,7 @@ async function getDocTypes(provider) {
       "getDocTypes",
       `Proveedor '${provider}' no encontrado`,
     );
-  return p.getDocTypes();
+  return p.getDocTypes(params);
 }
 
 // ─── Búsqueda ──────────────────────────────────────────────────────────────────
