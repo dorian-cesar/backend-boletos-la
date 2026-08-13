@@ -400,3 +400,48 @@ exports.addFarExpenses = async (req, res) => {
     return res.status(500).json({ message: 'Error interno', error: err.message });
   }
 };
+
+exports.getAvailableDestinations = async (req, res) => {
+  try {
+    const { date, origin } = req.query;
+
+    if (!date || !origin) {
+      return res.status(400).json({ message: 'Faltan parámetros obligatorios: date y origin' });
+    }
+
+    const start = dayjs.tz(date, TZ).startOf('day').toDate();
+    const end = dayjs.tz(date, TZ).endOf('day').toDate();
+
+    // Encontrar servicios para ese día que pasen por el origen
+    const services = await Service.find({
+      date: { $gte: start, $lte: end },
+      departures: { $elemMatch: { stop: origin } }
+    }).lean();
+
+    const destinationsSet = new Set();
+
+    services.forEach(service => {
+      const originStop = service.departures.find(d => d.stop === origin);
+      if (originStop) {
+        // Solo son válidos los destinos que están DESPUÉS del origen en el recorrido
+        service.departures.forEach(dep => {
+          if (dep.order > originStop.order) {
+            destinationsSet.add(dep.stop);
+          }
+        });
+      }
+    });
+
+    const destinations = Array.from(destinationsSet).sort();
+
+    return res.status(200).json({ 
+      success: true, 
+      count: destinations.length, 
+      destinations 
+    });
+
+  } catch (err) {
+    console.error('getAvailableDestinations error', err);
+    return res.status(500).json({ success: false, message: 'Error interno', error: err.message });
+  }
+};

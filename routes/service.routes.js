@@ -10,6 +10,7 @@ router.post('/generate-all', auth({ allowedRoles: ['superAdmin'] }), ctrl.genera
 // Listar servicios
 router.get('/', auth(), ctrl.getServices);
 router.get('/filter', auth(), ctrl.getServicesByFilter);
+router.get('/available-destinations', auth(), ctrl.getAvailableDestinations);
 router.get('/:id', auth(), ctrl.getServicesByID);
 
 // tripulacion

@@ -4,3 +4,4 @@
 /exports
 
 /utils/generateToken.js
+*.pem
