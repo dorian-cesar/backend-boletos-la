@@ -46,6 +46,59 @@ exports.getStops = async (req, res) => {
   send(res, result);
 };
 
+exports.getAvailableDestinations = async (req, res) => {
+  const provider = getProvider(req);
+  const { originId, date } = req.query;
+
+  if (!originId || !date) {
+    return res.status(400).json({
+      provider,
+      operation: "getAvailableDestinations",
+      status: "error",
+      error: { message: "Faltan parámetros: originId, date" },
+    });
+  }
+
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const cachePath = path.join(__dirname, '..', 'data', 'gds_cache.json');
+    
+    if (!fs.existsSync(cachePath)) {
+      return send(res, {
+        provider,
+        operation: "getAvailableDestinations",
+        status: "success",
+        data: { destinations: [] },
+        meta: { warning: "Caché no generada aún" }
+      });
+    }
+
+    const cache = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+    
+    let destinations = [];
+    if (cache[originId] && cache[originId][date]) {
+      destinations = cache[originId][date];
+    }
+
+    return send(res, {
+      provider,
+      operation: "getAvailableDestinations",
+      status: "success",
+      data: { destinations },
+      meta: { source: "cache" }
+    });
+
+  } catch (err) {
+    return send(res, {
+      provider,
+      operation: "getAvailableDestinations",
+      status: "error",
+      error: { message: err.message }
+    });
+  }
+};
+
 exports.getCountries = async (req, res) => {
   const provider = getProvider(req);
   const channel = getChannel(req);

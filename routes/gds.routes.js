@@ -23,6 +23,9 @@ router.get("/:provider/stops", auth(), ctrl.getStops);
 router.get("/:provider/countries", auth(), ctrl.getCountries);
 router.get("/:provider/doc-types", auth(), ctrl.getDocTypes);
 
+// ─── Rutas Optimizadas (Caché) ────────────────────────────────────────────────
+router.get("/:provider/available-destinations", auth(), ctrl.getAvailableDestinations);
+
 // ─── Búsqueda ──────────────────────────────────────────────────────────────────
 router.get("/:provider/search", auth(), ctrl.search);
 
