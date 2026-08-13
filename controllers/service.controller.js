@@ -403,11 +403,13 @@ exports.addFarExpenses = async (req, res) => {
 
 exports.getAvailableDestinations = async (req, res) => {
   try {
-    const { date, origin } = req.query;
+    let { date, origin } = req.query;
 
     if (!date || !origin) {
       return res.status(400).json({ message: 'Faltan parámetros obligatorios: date y origin' });
     }
+
+    origin = origin.trim();
 
     const start = dayjs.tz(date, TZ).startOf('day').toDate();
     const end = dayjs.tz(date, TZ).endOf('day').toDate();
@@ -437,7 +439,14 @@ exports.getAvailableDestinations = async (req, res) => {
     return res.status(200).json({ 
       success: true, 
       count: destinations.length, 
-      destinations 
+      destinations,
+      debug: {
+        receivedDate: date,
+        receivedOrigin: origin,
+        queryStart: start,
+        queryEnd: end,
+        servicesFoundCount: services.length
+      }
     });
 
   } catch (err) {
