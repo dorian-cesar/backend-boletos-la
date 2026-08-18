@@ -7,6 +7,7 @@ const rateLimit = require("express-rate-limit");
 //crons
 const startReleaseSeatsCron = require("./cron/releaseSeats.cron");
 const startGenerateServicesCron = require("./cron/generateServices.cron");
+const startGdsCacheCron = require("./cron/gdsCache.cron");
 
 //server
 const routes = require("./routes/index.routes");
@@ -86,6 +87,7 @@ if (MONGO_URI) {
       startReleaseSeatsCron();
       if (process.env.NODE_ENV === "production") {
         startGenerateServicesCron();
+        startGdsCacheCron();
       }
     })
     .catch((err) => {
