@@ -48,6 +48,15 @@ async function runCacheGenerator() {
     const stops = resultStops.data.stops;
     console.log(`📍 Se encontraron ${stops.length} paradas.`);
 
+    // Priorizar Asunción (Id: 184)
+    stops.sort((a, b) => {
+      const aId = String(a.id || a.Id);
+      const bId = String(b.id || b.Id);
+      if (aId === '184') return -1;
+      if (bId === '184') return 1;
+      return 0;
+    });
+
     // 2. Generar lista de fechas
     const dates = [];
     for (let i = 0; i < DAYS_TO_CACHE; i++) {
@@ -55,70 +64,90 @@ async function runCacheGenerator() {
     }
     console.log(`📅 Analizando fechas: ${dates.join(', ')}`);
 
-    // 3. Crear el array de tareas
-    // Para cada origen, para cada fecha, para cada destino (origen != destino)
-    const tasks = [];
+    let cache = {};
+    if (fs.existsSync(CACHE_FILE)) {
+      try {
+        cache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+      } catch (e) {}
+    }
+
+    let completed = 0;
+    const totalCombinations = stops.length * dates.length * (stops.length - 1);
+    console.log(`⚙️  Total de combinaciones a evaluar: ${totalCombinations}`);
+    console.log(`⏱️  Usando concurrencia de ${CONCURRENCY_LIMIT} peticiones simultáneas.`);
+
     for (const origin of stops) {
+      const oId = origin.id || origin.Id;
+      if (!oId) continue;
+      
+      const originName = origin.name || origin.Descripcion || oId;
+      console.log(`\n▶️  Procesando origen: ${originName} (Id: ${oId})`);
+
+      const tasks = [];
       for (const date of dates) {
         for (const destination of stops) {
-          if (origin.id !== destination.id) {
-            tasks.push({
-              originId: origin.id,
-              destinationId: destination.id,
-              date: date
-            });
+          const dId = destination.id || destination.Id;
+          if (dId && oId !== dId) {
+            tasks.push({ originId: oId, destinationId: dId, date: date });
           }
         }
       }
+
+      // Reiniciamos/Preparamos la estructura para este origen
+      cache[oId] = {};
+      for (const date of dates) {
+        cache[oId][date] = [];
+      }
+
+      const processTask = async (task) => {
+        try {
+          const res = await gds.search(PROVIDER, {
+            originId: task.originId,
+            destinationId: task.destinationId,
+            date: task.date,
+            channel: 'web'
+          });
+          if (res && res.status === 'success' && res.data && res.data.trips && res.data.trips.length > 0) {
+            const times = Array.from(new Set(res.data.trips.map(trip => {
+              if (trip.departureDisplay) {
+                const parts = trip.departureDisplay.split(' ');
+                if (parts.length > 1) return parts[1];
+              }
+              if (trip.departureTime) {
+                const dt = new Date(trip.departureTime);
+                if (!isNaN(dt.getTime())) return dt.toISOString().substr(11, 5);
+              }
+              return null;
+            }).filter(Boolean))).sort();
+
+            cache[task.originId][task.date].push({
+              destinationId: task.destinationId,
+              times: times,
+              lastServiceTime: times.length > 0 ? times[times.length - 1] : null,
+              serviceCount: res.data.trips.length
+            });
+          }
+        } catch (err) {
+          // Ignoramos errores puntuales
+        }
+        completed++;
+        if (completed % 500 === 0) {
+          const percent = ((completed / totalCombinations) * 100).toFixed(2);
+          process.stdout.write(` [${percent}%] `);
+        }
+      };
+
+      // Ejecutamos las peticiones para este origen
+      await asyncPool(CONCURRENCY_LIMIT, tasks, processTask);
+      
+      // Guardar el archivo progresivamente
+      fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2), 'utf8');
+      console.log(`\n✅ Caché actualizado para origen ${originName}.`);
     }
 
-    console.log(`⚙️  Total de combinaciones a evaluar: ${tasks.length}`);
-    console.log(`⏱️  Usando concurrencia de ${CONCURRENCY_LIMIT} peticiones simultáneas.`);
-
-    // Objeto final de caché: { originId: { date: [destId1, destId2] } }
-    const cache = {};
-
-    let completed = 0;
-    
-    // Función de iteración
-    const processTask = async (task) => {
-      try {
-        const res = await gds.search(PROVIDER, {
-          originId: task.originId,
-          destinationId: task.destinationId,
-          date: task.date,
-          channel: 'web'
-        });
-
-        // Inicializar estructura si no existe
-        if (!cache[task.originId]) cache[task.originId] = {};
-        if (!cache[task.originId][task.date]) cache[task.originId][task.date] = [];
-
-        // Si devuelve viajes, agregamos el destino a los disponibles
-        if (res && res.status === 'success' && res.data && res.data.trips && res.data.trips.length > 0) {
-          cache[task.originId][task.date].push(task.destinationId);
-        }
-      } catch (err) {
-        // Ignoramos errores puntuales para no detener el proceso masivo
-        console.error(`Error consultando origen ${task.originId} a destino ${task.destinationId}: ${err.message}`);
-      }
-
-      completed++;
-      if (completed % 1000 === 0) {
-        const percent = ((completed / tasks.length) * 100).toFixed(2);
-        console.log(`   Procesadas ${completed} de ${tasks.length} peticiones (${percent}%)`);
-      }
-    };
-
-    // 4. Ejecutar todas las peticiones con control de concurrencia
-    await asyncPool(CONCURRENCY_LIMIT, tasks, processTask);
-
-    // 5. Guardar el archivo final
-    fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2), 'utf8');
-    
     const durationMins = ((Date.now() - startTime) / 60000).toFixed(2);
-    console.log(`✅ Caché generada exitosamente en ${durationMins} minutos.`);
-    console.log(`📁 Archivo guardado en: ${CACHE_FILE}`);
+    console.log(`\n✅ Caché generada totalmente en ${durationMins} minutos.`);
+    console.log(`📁 Archivo final guardado en: ${CACHE_FILE}`);
 
   } catch (error) {
     console.error("❌ Error catastrófico en el generador de caché:", error);
