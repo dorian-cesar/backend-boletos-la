@@ -6,6 +6,7 @@ require('dotenv').config();
 const gds = require('../gds'); // Importamos el orquestador GDS
 
 const CACHE_FILE = path.join(__dirname, '..', 'data', 'gds_cache.json');
+const FAILED_ROUTES_FILE = path.join(__dirname, '..', 'data', 'failed_routes.json');
 const PROVIDER = 'delta'; // Proveedor por defecto
 const DAYS_TO_CACHE = 7;
 const CONCURRENCY_LIMIT = 5; // Bajado para evitar Timeouts en Delta // Aumentado porque ya no bloquean
@@ -72,7 +73,6 @@ async function runCacheGenerator() {
     }
 
     let completed = 0;
-    let globalFailedTasks = [];
     const totalCombinations = stops.length * dates.length * (stops.length - 1);
     console.log(`⚙️  Total de combinaciones a evaluar: ${totalCombinations}`);
     console.log(`⏱️  Usando concurrencia de ${CONCURRENCY_LIMIT} peticiones simultáneas.`);
@@ -85,6 +85,7 @@ async function runCacheGenerator() {
       console.log(`\n▶️  Procesando origen: ${originName} (Id: ${oId})`);
 
       const tasks = [];
+      const failedTasks = [];
       for (const date of dates) {
         for (const destination of stops) {
           const dId = destination.id || destination.Id;
@@ -139,7 +140,7 @@ async function runCacheGenerator() {
           } catch (err) {
             if (attempts >= 3) {
               console.error(`\n[ERROR] Falló tras 3 intentos en ${task.originId} -> ${task.destinationId} el ${task.date}: ${err.message}`);
-              globalFailedTasks.push(task);
+              failedTasks.push(task);
             } else {
               // Pequeña pausa antes del reintento
               await new Promise(r => setTimeout(r, 1500));
@@ -158,54 +159,20 @@ async function runCacheGenerator() {
       
       // Guardar el archivo progresivamente
       fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2), 'utf8');
+      // Append failed tasks for this origin to failed_routes.json
+      if (failedTasks.length > 0) {
+        let allFailed = [];
+        if (fs.existsSync(FAILED_ROUTES_FILE)) {
+          try {
+            allFailed = JSON.parse(fs.readFileSync(FAILED_ROUTES_FILE, 'utf8'));
+          } catch(e) {}
+        }
+        allFailed = allFailed.concat(failedTasks);
+        fs.writeFileSync(FAILED_ROUTES_FILE, JSON.stringify(allFailed, null, 2), 'utf8');
+      }
+
       console.log(`\n✅ Caché actualizado para origen ${originName}.`);
     }
-
-    if (globalFailedTasks.length > 0) {
-      console.log(`\n⚠️  Hubo ${globalFailedTasks.length} rutas que fallaron. Reintentándolas una por una...`);
-      
-      const retryProcessTask = async (task) => {
-        try {
-          const res = await gds.search(PROVIDER, {
-            originId: task.originId,
-            destinationId: task.destinationId,
-            date: task.date,
-            channel: 'web'
-          });
-          
-          if (res && res.status === 'success' && res.data && res.data.trips && res.data.trips.length > 0) {
-            const times = Array.from(new Set(res.data.trips.map(trip => {
-              if (trip.departureDisplay) {
-                const parts = trip.departureDisplay.split(' ');
-                if (parts.length > 1) return parts[1];
-              }
-              if (trip.departureTime) {
-                const dt = new Date(trip.departureTime);
-                if (!isNaN(dt.getTime())) return dt.toISOString().substr(11, 5);
-              }
-              return null;
-            }).filter(Boolean))).sort();
-
-            cache[task.originId][task.date].push({
-              destinationId: task.destinationId,
-              times: times,
-              lastServiceTime: times.length > 0 ? times[times.length - 1] : null,
-              serviceCount: res.data.trips.length
-            });
-            console.log(`✅ [REINTENTO EXITOSO] ${task.originId} -> ${task.destinationId} el ${task.date}`);
-          }
-        } catch (err) {
-           console.error(`❌ [REINTENTO FALLIDO] ${task.originId} -> ${task.destinationId} el ${task.date}`);
-        }
-      };
-
-      // Usar concurrencia súper baja (1) para estos rezagados
-      await asyncPool(1, globalFailedTasks, retryProcessTask);
-      
-      fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2), 'utf8');
-      console.log(`\n✅ Caché final guardada tras reintentos.`);
-    }
-
     const durationMins = ((Date.now() - startTime) / 60000).toFixed(2);
     console.log(`\n✅ Caché generada totalmente en ${durationMins} minutos.`);
     console.log(`📁 Archivo final guardado en: ${CACHE_FILE}`);
