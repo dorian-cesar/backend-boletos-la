@@ -8,7 +8,7 @@ const gds = require('../gds'); // Importamos el orquestador GDS
 const CACHE_FILE = path.join(__dirname, '..', 'data', 'gds_cache.json');
 const PROVIDER = 'delta'; // Proveedor por defecto
 const DAYS_TO_CACHE = 7;
-const CONCURRENCY_LIMIT = 5; // Peticiones simultáneas a Delta
+const CONCURRENCY_LIMIT = 5; // Bajado para evitar Timeouts en Delta // Aumentado porque ya no bloquean
 
 // Helper para limitar concurrencia de promesas
 async function asyncPool(poolLimit, array, iteratorFn) {
@@ -79,7 +79,7 @@ async function runCacheGenerator() {
     for (const origin of stops) {
       const oId = origin.id || origin.Id;
       if (!oId) continue;
-      
+
       const originName = origin.name || origin.Descripcion || oId;
       console.log(`\n▶️  Procesando origen: ${originName} (Id: ${oId})`);
 
@@ -100,35 +100,49 @@ async function runCacheGenerator() {
       }
 
       const processTask = async (task) => {
-        try {
-          const res = await gds.search(PROVIDER, {
-            originId: task.originId,
-            destinationId: task.destinationId,
-            date: task.date,
-            channel: 'web'
-          });
-          if (res && res.status === 'success' && res.data && res.data.trips && res.data.trips.length > 0) {
-            const times = Array.from(new Set(res.data.trips.map(trip => {
-              if (trip.departureDisplay) {
-                const parts = trip.departureDisplay.split(' ');
-                if (parts.length > 1) return parts[1];
-              }
-              if (trip.departureTime) {
-                const dt = new Date(trip.departureTime);
-                if (!isNaN(dt.getTime())) return dt.toISOString().substr(11, 5);
-              }
-              return null;
-            }).filter(Boolean))).sort();
-
-            cache[task.originId][task.date].push({
+        
+        let success = false;
+        let attempts = 0;
+        
+        while (!success && attempts < 3) {
+          try {
+            attempts++;
+            const res = await gds.search(PROVIDER, {
+              originId: task.originId,
               destinationId: task.destinationId,
-              times: times,
-              lastServiceTime: times.length > 0 ? times[times.length - 1] : null,
-              serviceCount: res.data.trips.length
+              date: task.date,
+              channel: 'web'
             });
+            
+            if (res && res.status === 'success' && res.data && res.data.trips && res.data.trips.length > 0) {
+              const times = Array.from(new Set(res.data.trips.map(trip => {
+                if (trip.departureDisplay) {
+                  const parts = trip.departureDisplay.split(' ');
+                  if (parts.length > 1) return parts[1];
+                }
+                if (trip.departureTime) {
+                  const dt = new Date(trip.departureTime);
+                  if (!isNaN(dt.getTime())) return dt.toISOString().substr(11, 5);
+                }
+                return null;
+              }).filter(Boolean))).sort();
+
+              cache[task.originId][task.date].push({
+                destinationId: task.destinationId,
+                times: times,
+                lastServiceTime: times.length > 0 ? times[times.length - 1] : null,
+                serviceCount: res.data.trips.length
+              });
+            }
+            success = true; // Funcionó sin error, salimos del while
+          } catch (err) {
+            if (attempts >= 3) {
+              console.error(`\n[ERROR] Falló tras 3 intentos en ${task.originId} -> ${task.destinationId} el ${task.date}: ${err.message}`);
+            } else {
+              // Pequeña pausa antes del reintento
+              await new Promise(r => setTimeout(r, 1500));
+            }
           }
-        } catch (err) {
-          // Ignoramos errores puntuales
         }
         completed++;
         if (completed % 500 === 0) {
