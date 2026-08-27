@@ -158,6 +158,16 @@ async function queryTicketQR(provider, params) {
   return p.queryTicketQR(params);
 }
 
+async function generarQR(provider, params) {
+  const p = getProvider(provider);
+  if (!p)
+    return error(
+      provider,
+      "generarQR",
+      `Proveedor '${provider}' no encontrado`,
+    );
+  return p.generarQR(params);
+}
 
 async function generateConnection(provider) {
   const p = getProvider(provider);
@@ -189,5 +199,7 @@ module.exports = {
   sell,
   queryTicket,
   queryTicketQR,
+  generarQR,
   getServiceRoute,
 };
+

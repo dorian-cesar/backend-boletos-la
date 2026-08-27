@@ -109,6 +109,10 @@ module.exports = {
   empresasParaPasajesConsulta: (p) => call('EmpresasParaPasajes_Consulta', p),
   pasajesFacturaAEmpresa: (p) => call('PasajesFacturaAEmpresa', p),
 
+  // Generación de QR oficial (ASMX SOAP o POST)
+  boletosGenerarQR: (p) => call('Boletos_GenerarQR', p),
+
   // Util interno
   _call: call
 };
+

@@ -388,12 +388,69 @@ async function queryTicketQR({ company, ticketNumber }) {
     const rows = mapper.parseDataSet(xml);
     // Resultado: CDC (STRING), QR (STRING)
     const r = rows[0] || {};
+    const cdc = r.CDC || null;
+    const qrString = r.QR || null;
+
+    let qrBase64Image = null;
+    if (qrString) {
+      const QRCode = require('qrcode');
+      const trimmedQR = qrString.trim();
+      if (trimmedQR.startsWith('http')) {
+        qrBase64Image = await QRCode.toDataURL(trimmedQR, {
+          errorCorrectionLevel: 'M',
+          margin: 2,
+          width: 250
+        });
+      } else {
+        qrBase64Image = trimmedQR.startsWith('data:image')
+          ? trimmedQR
+          : `data:image/png;base64,${trimmedQR}`;
+      }
+    }
+
     return success(PROVIDER, "queryTicketQR", {
-      cdc: r.CDC || null,
-      qr: r.QR || null,
+      cdc,
+      qr: qrString,
+      qrBase64Image
     });
   } catch (err) {
     return error(PROVIDER, "queryTicketQR", err.message);
+  }
+}
+
+
+async function generarQR(params = {}) {
+  try {
+    const QRCode = require('qrcode');
+    const xml = await client.boletosGenerarQR(params);
+    
+    // El WS devuelve una respuesta primitiva de tipo string
+    const rawResult = mapper.parsePrimitive(xml);
+    if (!rawResult) {
+      throw new Error("No se pudo obtener el resultado de Boletos_GenerarQR");
+    }
+
+    const trimmedResult = rawResult.trim();
+    let qrBase64Image = '';
+
+    if (trimmedResult.startsWith('http')) {
+      qrBase64Image = await QRCode.toDataURL(trimmedResult, {
+        errorCorrectionLevel: 'M',
+        margin: 2,
+        width: 250
+      });
+    } else {
+      qrBase64Image = trimmedResult.startsWith('data:image') 
+        ? trimmedResult 
+        : `data:image/png;base64,${trimmedResult}`;
+    }
+
+    return success(PROVIDER, "generarQR", {
+      rawResult: trimmedResult,
+      qrBase64Image
+    });
+  } catch (err) {
+    return error(PROVIDER, "generarQR", err.message);
   }
 }
 
@@ -429,5 +486,7 @@ module.exports = {
   sell,
   queryTicket,
   queryTicketQR,
+  generarQR,
   getServiceRoute,
 };
+

@@ -24,7 +24,11 @@ router.get("/:provider/countries", auth(), ctrl.getCountries);
 router.get("/:provider/doc-types", auth(), ctrl.getDocTypes);
 
 // ─── Rutas Optimizadas (Caché) ────────────────────────────────────────────────
-router.get("/:provider/available-destinations", auth(), ctrl.getAvailableDestinations);
+router.get(
+  "/:provider/available-destinations",
+  auth(),
+  ctrl.getAvailableDestinations,
+);
 
 // ─── Búsqueda ──────────────────────────────────────────────────────────────────
 router.get("/:provider/search", auth(), ctrl.search);
@@ -48,6 +52,7 @@ router.post("/:provider/sell", auth(), ctrl.sell);
 // ─── Consulta de boleto ────────────────────────────────────────────────────────
 router.get("/:provider/tickets/:ticketNumber", auth(), ctrl.queryTicket);
 router.get("/:provider/tickets/:ticketNumber/qr", auth(), ctrl.queryTicketQR);
+router.post("/:provider/generate-qr", auth(), ctrl.generarQR);
 
 // ─── Recorrido del servicio ────────────────────────────────────────────────────
 router.get(

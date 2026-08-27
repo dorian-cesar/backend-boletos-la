@@ -445,7 +445,18 @@ exports.queryTicketQR = async (req, res) => {
   send(res, result);
 };
 
+/**
+ * POST /api/gds/:provider/generate-qr
+ * Body: Cualquier parámetro que reciba Boletos_GenerarQR (opcional)
+ */
+exports.generarQR = async (req, res) => {
+  const provider = getProvider(req);
+  const result = await gds.generarQR(provider, req.body);
+  send(res, result);
+};
+
 // ─── Recorrido del servicio ────────────────────────────────────────────────────
+
 
 /**
  * GET /api/gds/:provider/services/:serviceId/route
