@@ -367,6 +367,7 @@ exports.sell = async (req, res) => {
     ticketCount,
     totalAmount,
     seats,
+    authorization_number,
   } = req.body || {};
 
   if (
@@ -377,7 +378,8 @@ exports.sell = async (req, res) => {
     !destinationId ||
     !ticketCount ||
     !totalAmount ||
-    !seats
+    !seats ||
+    !authorization_number
   ) {
     return res.status(400).json({
       provider,
@@ -385,7 +387,47 @@ exports.sell = async (req, res) => {
       status: "error",
       error: {
         message:
-          "Faltan parámetros: company, serviceId, connectionId, originId, destinationId, ticketCount, totalAmount, seats",
+          "Faltan parámetros: company, serviceId, connectionId, originId, destinationId, ticketCount, totalAmount, seats, authorization_number",
+      },
+    });
+  }
+
+  // VALIDACIÓN CON BANCARD ANTES DEL SELL
+  try {
+    const bancardUrl = process.env.BACKEND_BANCARD || "https://wit-bancard.dev-wit.com";
+    const bancardRes = await fetch(`${bancardUrl}/api/pagosimple`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "validate-payment",
+        amount: totalAmount,
+        authorizationNumber: authorization_number,
+      }),
+    });
+
+    const bancardData = await bancardRes.json();
+
+    if (!bancardRes.ok || bancardData.status !== "success") {
+      return res.status(bancardRes.status !== 200 ? bancardRes.status : 400).json({
+        provider,
+        operation: "sell",
+        status: "error",
+        error: {
+          message: bancardData.message || "Error validando pago con Bancard",
+          details: bancardData.errors || null,
+        },
+      });
+    }
+
+    console.log(`[GDS:SELL] Validación de pago exitosa (invoice: ${bancardData.data?.invoiceNumber})`);
+  } catch (error) {
+    console.error("[GDS:SELL] Error conectando con backend Bancard:", error);
+    return res.status(500).json({
+      provider,
+      operation: "sell",
+      status: "error",
+      error: {
+        message: "Error de conexión al validar pago con Bancard",
       },
     });
   }
