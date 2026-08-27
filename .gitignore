@@ -5,3 +5,5 @@
 
 /utils/generateToken.js
 *.pem
+data/*.json
+scratch/
