@@ -395,19 +395,27 @@ exports.sell = async (req, res) => {
   // VALIDACIÓN CON BANCARD ANTES DEL SELL
   try {
     const bancardUrl = process.env.BACKEND_BANCARD || "https://wit-bancard.dev-wit.com";
+    
+    const payloadBancard = {
+      action: "validate-payment",
+      amount: totalAmount,
+      authorizationNumber: authorization_number,
+    };
+    
+    console.log("[GDS:SELL] Iniciando validación con Bancard...");
+    console.log(`[GDS:SELL] Payload a enviar:`, JSON.stringify(payloadBancard));
+
     const bancardRes = await fetch(`${bancardUrl}/api/pagosimple`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "validate-payment",
-        amount: totalAmount,
-        authorizationNumber: authorization_number,
-      }),
+      body: JSON.stringify(payloadBancard),
     });
 
     const bancardData = await bancardRes.json();
+    console.log(`[GDS:SELL] Respuesta de Bancard (Status HTTP ${bancardRes.status}):`, JSON.stringify(bancardData));
 
     if (!bancardRes.ok || bancardData.status !== "success") {
+      console.log("[GDS:SELL] Validación con Bancard fallida. Cancelando emisión en Delta.");
       return res.status(bancardRes.status !== 200 ? bancardRes.status : 400).json({
         provider,
         operation: "sell",
